@@ -24,15 +24,20 @@ AC_CHECK_LIB([erl_interface],
              [ AC_MSG_ERROR([can't find liberl_interface]) ],
              [ -lei -lpthread ])
 
-test "$FW_NATIVE_PACKAGE" != "none" || {
-  PKG_CHECK_MODULES([TOKYOCABINET_PREREQS],
+FW_TEMPLATE_C_SETUP_PKGCONFIG
+
+test "$FW_NATIVE_PACKAGE_TYPE" != "none" || {
+  PKG_CHECK_MODULES([TOKYOCABINET],
                     [tokyocabinet],
                     ,
-                    [AC_MSG_ERROR([pkg-config of 'tokyocabinet' failed: TOKYOCABINET_PREREQS_PKG_ERRORS])])
+                    [AC_MSG_WARN([pkg-config of 'tokyocabinet' failed: $TOKYOCABINET_PKG_ERRORS])
+                     PKG_CHECK_MODULES([TOKYOCABINET],
+                                       [tokyocabinet-1.0],
+                                       ,
+                                        AC_MSG_ERROR([pkg-config of 'tokyocabinet-1.0' failed: $TOKYOCABINET_PKG_ERRORS]))])
 }
-
-AC_SUBST([TOKYOCABINET_PREREQS_CFLAGS])
-AC_SUBST([TOKYOCABINET_PREREQS_LIBS])
+AC_SUBST([TOKYOCABINET_CFLAGS])
+AC_SUBST([TOKYOCABINET_LIBS])
 
 test -d "/sw/lib/erlang/usr/include/" && {
   CPPFLAGS="$CPPFLAGS -I/sw/lib/erlang/usr/include/"

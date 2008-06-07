@@ -1,5 +1,7 @@
 # put whatever (auto)make commands here, they will be included from Makefile.am
 
+INCLUDES += @TOKYOCABINET_CFLAGS@
+
 lib_LTLIBRARIES =		\
   libtcbdb.la
 
@@ -8,7 +10,8 @@ libtcbdb_la_SOURCES = 		\
   tcbdb.c
 
 libtcbdb_la_LIBADD = 		\
-  @FW_PKGCONFIG_PREREQS_LIBS@
+  @FW_PKGCONFIG_PREREQS_LIBS@	\
+  @TOKYOCABINET_LIBS@
 
 libtcbdb_la_LDFLAGS = 	\
   -module -avoid-version
