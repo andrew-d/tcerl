@@ -43,7 +43,7 @@
            prev/2,
            open_file/1,
            open_file/2,
-           % repair_continuation/2,
+           repair_continuation/2,
            select/1,
            select/2,
            select/3,
@@ -71,7 +71,7 @@
 %% @end
 
 -record (tcbdbets, { tcerl, filename, keypos, type, access }).
--record (tcbdbselectcont, { ts, intervals, endbin, max, matchspec, keys }).
+-record (tcbdbselectcont, { ts, intervals, endbin, max, matchspec, compiled, keys }).
 
 %-=====================================================================-
 %-                                Public                               -
@@ -489,6 +489,28 @@ open_file (Filename, Args) ->
     R = { error, _Reason } -> 
       R
   end.
+
+%% @spec repair_continuation (select_continuation (), matchspec ()) -> select_continuation ()
+%% @doc This function can be used to restore an opaque continuation
+%% returned by select/3 or select/1 if the continuation has
+%% passed through external term format (been sent between
+%% nodes or stored on disk).
+%% 
+%% The reason for this function is that continuation terms
+%% contain compiled match specifications and therefore will
+%% be invalidated if converted to external term format. Given
+%% that the original match specification is kept intact, the
+%% continuation can be restored, meaning it can once again
+%% be used in subsequent select/1 calls even though it has
+%% been stored on disk or on another node.
+%% 
+%% See also ets(3) for further explanations and examples.
+%% @end
+
+repair_continuation (finished, _MatchSpec) -> 
+  finished;
+repair_continuation (Continuation = #tcbdbselectcont{}, MatchSpec) ->
+  Continuation#tcbdbselectcont{ compiled = ets:match_spec_compile (MatchSpec) }.
 
 %% @spec select (select_continuation ()) -> { [ Match ], select_continuation () } | '$end_of_table' | { error, Reason }
 %% @doc Applies a match specification to some objects
