@@ -1,0 +1,42 @@
+dnl -- include additional autoconf commands here
+dnl -- do not include AC_OUTPUT, this is called for you
+
+ERL_CRASH_DUMP=/dev/null
+EIBASE="`erl -noshell -noinput -eval 'io:format (\"~s\", [[ code:lib_dir (erl_interface) ]])' -s erlang halt`"
+AC_SUBST([EIBASE])
+
+CPPFLAGS="$CPPFLAGS -I ${EIBASE}/include -I ${EIBASE}/src/legacy -I ${EIBASE}/src/misc/"
+
+AC_CHECK_HEADER([erl_marshal.h], 
+                [], 
+                [AC_MSG_ERROR([can't find erl_marshal.h; under debian you need to install erlang-src])], 
+                [#include <erl_interface.h>])
+
+LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${EIBASE}/lib"
+AC_CHECK_LIB([ei],
+             [ei_set_compat_rel],
+             [],
+             [ AC_MSG_ERROR([can't find libei]) ],
+             [ -lpthread ])
+AC_CHECK_LIB([erl_interface],
+             [erl_compare_ext],
+             [],
+             [ AC_MSG_ERROR([can't find liberl_interface]) ],
+             [ -lei -lpthread ])
+
+test "$FW_NATIVE_PACKAGE" != "none" || {
+  PKG_CHECK_MODULES([TOKYOCABINET_PREREQS],
+                    [tokyocabinet],
+                    ,
+                    [AC_MSG_ERROR([pkg-config of 'tokyocabinet' failed: TOKYOCABINET_PREREQS_PKG_ERRORS])])
+}
+
+AC_SUBST([TOKYOCABINET_PREREQS_CFLAGS])
+AC_SUBST([TOKYOCABINET_PREREQS_LIBS])
+
+test -d "/sw/lib/erlang/usr/include/" && {
+  CPPFLAGS="$CPPFLAGS -I/sw/lib/erlang/usr/include/"
+}
+
+AC_CHECK_HEADERS([erl_driver.h], ,
+                 [AC_MSG_ERROR([ need erl_driver.h to proceed ])])

@@ -1,0 +1,20 @@
+# put whatever (auto)make commands here, they will be included from Makefile.am
+
+lib_LTLIBRARIES =		\
+  libtcbdb.la
+
+libtcbdb_la_SOURCES = 		\
+  my_erl_marshal.c		\
+  tcbdb.c
+
+libtcbdb_la_LIBADD = 		\
+  @FW_PKGCONFIG_PREREQS_LIBS@
+
+libtcbdb_la_LDFLAGS = 	\
+  -module -avoid-version
+
+# ok, this is cheating, but ... 
+# i'm too lazy to fix all the signedness problems in this code
+my_erl_marshal.lo: my_erl_marshal.c
+	$(LTCOMPILE) -Wno-pointer-sign -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+	mv -f $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Plo
