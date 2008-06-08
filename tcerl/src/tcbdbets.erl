@@ -52,8 +52,8 @@
            % table/1
            % table/2
            % to_ets/2
-           traverse/2 
-           % update_counter/3   
+           traverse/2,
+           update_counter/3   
          ]).
 
 -ifdef (HAVE_EUNIT).
@@ -675,6 +675,38 @@ traverse (TcBdbEts = #tcbdbets{}, Function) when is_function (Function, 1) ->
     R = { error, _Reason } ->
       R
   end.
+
+%% @spec update_counter (tcbdbets (), any (), increment ()) -> integer ()
+%% where
+%%   increment () = { position (), delta () } | delta ()
+%%   position () = integer ()
+%%   delta () = integer ()
+%% @doc Updates the object with key Key stored in the
+%% table Name of type set by adding Incr to the element at
+%% the Pos:th position. The new counter value is returned. If
+%% no position is specified, the element directly following
+%% the key is updated.
+%%
+%% TcBdbEts must be of type ordered_set, the key must exist,
+%% and the position being updated cannot be the key position.
+%% Errors are indicated via exceptions with this routine.
+%% @end
+
+% TODO: don't actually do a read-modify-write
+
+update_counter (TcBdbEts = #tcbdbets{}, 
+                Key,
+                Increment) when is_integer (Increment) ->
+  update_counter (TcBdbEts, Key, { TcBdbEts#tcbdbets.keypos + 1, Increment });
+update_counter (TcBdbEts = #tcbdbets{ keypos = KeyPos, type = ordered_set },
+                Key,
+                { Pos, Incr }) when is_integer (Pos),
+                                    is_integer (Incr),
+                                    Pos =/= KeyPos ->
+  [ Value ] = lookup (TcBdbEts, Key),
+  NewCount = element (Pos, Value) + Incr,
+  ok = insert (TcBdbEts, setelement (Pos, Value, NewCount)),
+  NewCount.
 
 %-=====================================================================-
 %-                               Private                               -
@@ -1912,5 +1944,43 @@ traverse_test_ () ->
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
   }.
 
+update_counter_test_ () ->
+  F = fun ({ Tab, R }) ->
+    T = 
+      ?FORALL (X,
+               fun (_) -> { random_term (), 
+                            random_integer (),
+                            random_integer (),
+                            random_term () } end,
+               (fun ({ Key, Count, Incr, Value }) ->
+                  ok = tcbdbets:insert (R, { Key, Count, Value }),
+                  true = ets:insert (Tab, { Key, Count, Value }),
+
+                  TcbdbUp = tcbdbets:update_counter (R, Key, Incr),
+                  EtsUp = ets:update_counter (Tab, Key, Incr),
+
+                  TcbdbUp = EtsUp,
+
+                  true
+                end) (X)),
+
+    ok = fc:flasscheck (1000, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      Tab = ets:new (?MODULE, [ public, ordered_set ]),
+      tcerl:start (),
+      file:delete ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { Tab, R }
+    end,
+    fun ({ Tab, _ }) ->
+      ets:delete (Tab),
+      tcerl:stop (),
+      file:delete ("flass" ++ os:getpid ())
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
 
 -endif.
