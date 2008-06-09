@@ -2,6 +2,11 @@
 %% ordered_duplicate_bag semantics.
 
 % TODO: enforce access = read
+% TODO: mnesia wants to refer to tables via atoms
+% TODO: ordered_bag (requires driver help)
+% TODO: insert_new (requires driver help)
+% TODO: atomic update counter ... (lots of work required)
+% more TODOs sprinkled inline
 
 -module (tcbdbets).
 
@@ -54,7 +59,7 @@
            sync/1,
            % table/1
            % table/2
-           % to_ets/2
+           to_ets/2,
            traverse/2,
            update_counter/3   
          ]).
@@ -132,7 +137,7 @@ delete_all_objects (TcBdbEts = #tcbdbets{}) ->
 
 %% @spec delete_object (tcbdbets (), object ()) -> ok | { error, Reason }
 %% @doc Deletes all instances of a given object from a table..  
-%% With ordered_duplicate_bag semantics this can be used to delete some of the 
+%% With bag semantics this can be used to delete some of the 
 %% objects with a given key.
 %% @end
 
@@ -163,7 +168,7 @@ first (TcBdbEts = #tcbdbets{}) ->
 %% @doc Calls Function on successive elements of the
 %% table together with an extra argument AccIn. The
 %% order in which the elements of the table is erlang term order of key,
-%% and unspecified for objects with the same key (in ordered_duplicate_bag).
+%% and unspecified for objects with the same key (if type is not ordered_set).
 %% Function must return a new accumulator which
 %% is passed to the next call. Acc0 is returned if the table
 %% is empty.
@@ -178,7 +183,7 @@ foldl (Function, Acc0, TcBdbEts = #tcbdbets{}) when is_function (Function, 2) ->
 %% @doc Calls Function on successive elements of the
 %% table together with an extra argument AccIn. The
 %% order in which the elements of the table is reverse erlang term order 
-%% of key, and unspecified for objects with the same key (in ordered_duplicate_bag).
+%% of key, and unspecified for objects with the same key (if type is not ordered_set).
 %% Function must return a new accumulator which
 %% is passed to the next call. Acc0 is returned if the table
 %% is empty.
@@ -279,7 +284,7 @@ init_table (TcBdbEts, InitFun) ->
 %% @doc Replaces the existing objects of the table with
 %% objects created by calling the input function InitFun,
 %% see below. The reason for using this function rather than
-%% calling insert/2 is that of efficiency. (TODO)
+%% calling insert/2 is that of efficiency. (TODO: does that apply here?)
 %% 
 %% When called with the argument read the function InitFun is
 %% assumed to return end_of_input when there is no more input,
@@ -422,7 +427,7 @@ match (TcBdbEts, Pattern) ->
 %% further objects by calling match/1.
 %% 
 %% All objects with the same key are always
-%% matched at the same time which implies that, for ordered_duplicate_bag,
+%% matched at the same time which implies that, unless type is ordered_set,
 %% more than N matches may sometimes be matched.
 %%
 %% The result is in the same order as in a first/next traversal.
@@ -492,7 +497,7 @@ match_object (TcBdbEts = #tcbdbets{}, Pattern) ->
 %% further objects by calling match_object/1.
 %% 
 %% All objects with the same key are always
-%% matched at the same time which implies that, for ordered_duplicate_bag,
+%% matched at the same time which implies that, unless type is ordered_set,
 %% more than N objects may sometimes be matched.
 %% @end
 
@@ -747,6 +752,20 @@ select_delete (TcBdbEts = #tcbdbets{}, MatchSpec) ->
 
 sync (TcBdbEts = #tcbdbets{}) ->
   tcbdb:sync (TcBdbEts#tcbdbets.tcerl).
+
+%% @spec to_ets (tcbdbets (), ets_table ()) -> ets_table () | { error, Reason }
+%% @doc Inserts the objects of the table into
+%% the Ets table Tab. Elements are inserted in erlang term order of
+%% their keys, and is unspecified for records with the same key 
+%% (when type is not ordered_set).  The existing objects of the
+%% Ets table are kept unless overwritten.
+%% @end
+
+to_ets (TcBdbEts = #tcbdbets{}, Tab) ->
+  case traverse (TcBdbEts, fun (X) -> ets:insert (Tab, X), continue end) of
+    [] -> Tab;
+    R = { error, _Reason } -> R
+  end.
 
 %% @spec traverse (tcbdbets (), traverse_func ()) -> Acc | { error, Reason }
 %% @doc 
@@ -1245,7 +1264,6 @@ set_defaults (Filename, Options) ->
                    { record_alignment, -1 },
                    { free_block_pool, -1 } ] ++ 
                    Type ++ Keypos ++ File ++ Access ++ Compression ++ Options).
-
 
 % traverse
 
@@ -2124,6 +2142,44 @@ sync_test_ () ->
       R
     end,
     fun (_) ->
+      tcerl:stop (),
+      file:delete ("flass" ++ os:getpid ())
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
+to_ets_test_ () ->
+  F = fun ({ Tab, R }) ->
+    T = 
+      ?FORALL (X,
+               fun (_) -> [ { random_term (), random_term () } || 
+                            _ <- lists:seq (1, random:uniform (20)) ] end,
+               (fun (Objects) ->
+                  ok = tcbdbets:insert (R, Objects),
+                  Tab = tcbdbets:to_ets (R, Tab),
+
+                  RFoldl = 
+                    tcbdbets:foldl (fun (Y, Acc) -> [ Y | Acc ] end, [], R),
+                  EtsFoldl = 
+                    ets:foldl (fun (Y, Acc) -> [ Y | Acc ] end, [], Tab),
+
+                  RFoldl = EtsFoldl,
+                  true
+                end) (X)),
+
+    ok = fc:flasscheck (100, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      Tab = ets:new (?MODULE, [ public, ordered_set ]),
+      tcerl:start (),
+      file:delete ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { Tab, R }
+    end,
+    fun ({ Tab, _ }) ->
+      ets:delete (Tab),
       tcerl:stop (),
       file:delete ("flass" ++ os:getpid ())
     end,
