@@ -49,7 +49,6 @@
            next/2,
            prev/2,
            open_file/1,
-           open_file/2,
            repair_continuation/2,
            select/1,
            select/2,
@@ -595,14 +594,7 @@ prev (TcBdbEts = #tcbdbets{}, Key) ->
                                         % match dets as closely as possible
   end.
 
-%% @spec open_file (iodata ()) -> { ok, tcbdbets () } | { error, Reason }
-%% @equiv open_file (Filename, [])
-%% @end
-
-open_file (Filename) ->
-  open_file (Filename, []).
-
-%% @spec open_file (iodata (), [ arg () ]) -> { ok, tcbdbets () } | { error, Reason }
+%% @spec open_file ([ arg () ]) -> { ok, tcbdbets () } | { error, Reason }
 %% where
 %%   arg () = { access, access () } | { file, iodata () } | 
 %%            { keypos, integer () } | { type, type () } |
@@ -619,34 +611,37 @@ open_file (Filename) ->
 %% The Args argument is a list of { Key, Val } tuples where
 %% the following values are recognized:
 %%    * { access, access () }: either read or read_write; default read_write
-%%    * { file, iodata () }: this can override the filename specified as the first argument; default Filename
+%%    * { file, iodata () }: required
 %%    * { keypos, integer () }, the position of the element of each object to be used as key. The default value is 1. The ability to explicitly state the key position is most convenient when we want to store Erlang records in which the first position of the record is the name of the record type.
 %%    * { type, type () }, the type of the table (ordered_set or ordered_duplicate_bag). The default value is ordered_set.
 %%    * Other tuples indicated above: same interpretation as tcbdb:open/2.  NB: The tcbdb:open/2 options [ term_store, large, nolock ] are always present.
 %% @end
 
-open_file (Filename, Args) ->
-  WithDefaults = set_defaults (Filename, Args),
-  Access = get_value (access, WithDefaults),
-  File = get_value (file, WithDefaults),
-  KeyPos = get_value (keypos, WithDefaults),
-  Type = get_value (type, WithDefaults),
-
-  Mode = case Access of 
-           read -> [ reader ];
-           read_write -> [ reader, writer, create ]
-         end,
-
-  case tcbdb:open (File,
-                   [ term_store, large, nolock ] ++ Mode ++ WithDefaults) of
-    { ok, Tcerl } ->
-      { ok, #tcbdbets{ tcerl = Tcerl,
-                       filename = File,
-                       keypos = KeyPos,
-                       type = Type,
-                       access = Access } };
-    R = { error, _Reason } -> 
-      R
+open_file (Args) ->
+  WithDefaults = set_defaults (Args),
+  case lists:keysearch (file, 1, WithDefaults) of
+    false -> { error, file_not_specified };
+    { value, { file, File } } ->
+      Access = get_value (access, WithDefaults),
+      KeyPos = get_value (keypos, WithDefaults),
+      Type = get_value (type, WithDefaults),
+    
+      Mode = case Access of 
+               read -> [ reader ];
+               read_write -> [ reader, writer, create ]
+             end,
+    
+      case tcbdb:open (File,
+                       [ term_store, large, nolock ] ++ Mode ++ WithDefaults) of
+        { ok, Tcerl } ->
+          { ok, #tcbdbets{ tcerl = Tcerl,
+                           filename = File,
+                           keypos = KeyPos,
+                           type = Type,
+                           access = Access } };
+        R = { error, _Reason } -> 
+          R
+      end
   end.
 
 %% @spec repair_continuation (select_continuation (), matchspec ()) -> select_continuation ()
@@ -1272,7 +1267,7 @@ select_delete (TcBdbEts, Intervals, EndBin, Compiled, [ KeyBin | Rest ], N) ->
 
 % set_defaults
 
-set_defaults (Filename, Options) ->
+set_defaults (Options) ->
   Compression = case { lists:member (deflate, Options), 
                        lists:member (tcbs, Options) } of
                   { false, false } -> [ deflate ];
@@ -1283,11 +1278,6 @@ set_defaults (Filename, Options) ->
              false -> [ { access, read_write } ];
              _ -> []
            end,
-
-  File = case lists:member (file, Options) of
-             false -> [ { file, Filename } ];
-             _ -> []
-         end,
 
   Keypos = case lists:member (keypos, Options) of
              false -> [ { keypos, 1 } ];
@@ -1307,7 +1297,7 @@ set_defaults (Filename, Options) ->
                    { bucket_array_size, -1 },
                    { record_alignment, -1 },
                    { free_block_pool, -1 } ] ++ 
-                   Type ++ Keypos ++ File ++ Access ++ Compression ++ Options).
+                   Type ++ Keypos ++ Access ++ Compression ++ Options).
 
 % traverse
 
@@ -1442,7 +1432,7 @@ close_test_ () ->
     fun (_) -> tcerl:stop () end,
     fun () -> 
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () } ]),
       ok = tcbdbets:close (R),
       file:delete ("flass" ++ os:getpid ())
     end }.
@@ -1471,7 +1461,7 @@ delete_all_objects_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid ()} ]),
       R
     end,
     fun (_) ->
@@ -1528,8 +1518,8 @@ delete_object_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid (),
-                                      [ { type, ordered_duplicate_bag } ]),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
+                                        { type, ordered_duplicate_bag } ]),
       R
     end,
     fun (_) ->
@@ -1569,7 +1559,7 @@ first_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       R
     end,
     fun (_) ->
@@ -1608,7 +1598,7 @@ foldl_test_ () ->
       Tab = ets:new (?MODULE, [ public, ordered_set ]),
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->
@@ -1648,7 +1638,7 @@ foldr_test_ () ->
       Tab = ets:new (?MODULE, [ public, ordered_set ]),
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->
@@ -1687,7 +1677,7 @@ from_ets_test_ () ->
       Tab = ets:new (?MODULE, [ public, ordered_set ]),
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->
@@ -1716,7 +1706,7 @@ info_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       R
     end,
     fun (_) ->
@@ -1765,8 +1755,8 @@ init_table_test_ () ->
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
       file:delete ("turg" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
-      { ok, D } = tcbdbets:open_file ("turg" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
+      { ok, D } = tcbdbets:open_file ([ { file, "turg" ++ os:getpid () }]),
       { R, D }
     end,
     fun (_) ->
@@ -1807,7 +1797,7 @@ last_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       R
     end,
     fun (_) ->
@@ -1858,7 +1848,7 @@ match_test_ () ->
       Tab = ets:new (?MODULE, [ public, ordered_set ]),
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->
@@ -1899,7 +1889,7 @@ match_delete_test_ () ->
       Tab = ets:new (?MODULE, [ public, ordered_set ]),
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->
@@ -1951,7 +1941,7 @@ match_object_test_ () ->
       Tab = ets:new (?MODULE, [ public, ordered_set ]),
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->
@@ -1986,7 +1976,7 @@ next_test_ () ->
       Tab = ets:new (?MODULE, [ public, ordered_set ]),
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->
@@ -2021,7 +2011,7 @@ prev_test_ () ->
       Tab = ets:new (?MODULE, [ public, ordered_set ]),
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->
@@ -2059,7 +2049,7 @@ roundtrip_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid (), []),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       R
     end,
     fun (_) ->
@@ -2110,7 +2100,7 @@ select_test_ () ->
       Tab = ets:new (?MODULE, [ public, ordered_set ]),
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->
@@ -2150,7 +2140,7 @@ select_delete_test_ () ->
       Tab = ets:new (?MODULE, [ public, ordered_set ]),
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->
@@ -2186,7 +2176,7 @@ sync_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       R
     end,
     fun (_) ->
@@ -2223,7 +2213,7 @@ to_ets_test_ () ->
       Tab = ets:new (?MODULE, [ public, ordered_set ]),
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->
@@ -2276,7 +2266,7 @@ traverse_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       R
     end,
     fun (_) ->
@@ -2314,7 +2304,7 @@ update_counter_test_ () ->
       Tab = ets:new (?MODULE, [ public, ordered_set ]),
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->
