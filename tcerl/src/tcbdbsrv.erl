@@ -27,7 +27,7 @@ start_link () ->
 init ([]) ->
   { ok, Dir } = application:get_env (tcerl, tcerldrvprefix),
 
-  case erl_ddll:load_driver (Dir ++ "/lib", libtcbdb) of
+  case erl_ddll:load_driver (Dir ++ "/lib", libtcbdberl) of
     ok -> ok;
     { error, already_loaded } -> ok
   end,

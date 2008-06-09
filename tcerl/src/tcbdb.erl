@@ -496,7 +496,7 @@ get_value (What, List) ->
   Value.
 
 make_port () ->
-  open_port ({ spawn, libtcbdb }, [ binary ]).
+  open_port ({ spawn, libtcbdberl }, [ binary ]).
 
 set_defaults (Options) ->
   Compression = case { lists:member (deflate, Options), 
