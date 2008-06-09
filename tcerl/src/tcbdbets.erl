@@ -35,7 +35,7 @@
            init_table/2,
            init_table/3,
            insert/2,
-           % insert_new/2
+           insert_new/2,
            % is_tcbdb_file/1
            last/1,
            lookup/2,
@@ -340,8 +340,10 @@ insert (TcBdbEts = #tcbdbets{}, Object) when is_tuple (Object) ->
   insert (TcBdbEts, [ Object ]);
 insert (_TcBdbEts, []) ->
   ok;
-insert (TcBdbEts = #tcbdbets{}, [ H | T ]) ->
-  Key = element (TcBdbEts#tcbdbets.keypos, H),
+insert (TcBdbEts = #tcbdbets{ keypos = KeyPos }, 
+        [ H | T ]) when is_tuple (H),
+                        size (H) >= KeyPos ->
+  Key = element (KeyPos, H),
   KeyBin = erlang:term_to_binary (Key, [ { minor_version, 1 } ]),
   ValueBin = erlang:term_to_binary (H, [ { minor_version, 1 } ]),
 
@@ -360,6 +362,31 @@ insert (TcBdbEts = #tcbdbets{}, [ H | T ]) ->
         R = { error, _Reason } ->
           R
       end
+  end.
+
+%% @spec insert_new (tcbdbets (), objects ()) -> true | false | { error, Reason }
+%% @doc Inserts one or more objects into the table. If
+%% there already exists some object with a key matching the
+%% key of any of the given objects the table is not updated
+%% and false is returned, otherwise the objects are inserted
+%% and true returned.
+%% @end
+
+insert_new (TcBdbEts, Object) when is_tuple (Object) ->
+  insert_new (TcBdbEts, [ Object ]);
+insert_new (TcBdbEts = #tcbdbets{ keypos = KeyPos }, 
+            Objects) when is_list (Objects) ->
+  case lists:any (fun (O) when is_tuple (O), size (O) >= KeyPos -> 
+                    Key = element (KeyPos, O),
+                    tcbdbets:member (TcBdbEts, Key)
+                  end,
+                  Objects) of
+    false -> 
+      case insert (TcBdbEts, Objects) of
+        ok -> true;
+        R = { error, _Reason } -> R
+      end;
+    true -> false
   end.
 
 %% @spec last (tcbdbets ()) -> Key | '$end_of_table'
@@ -1995,8 +2022,12 @@ roundtrip_test_ () ->
                fun (_) -> { random_term (), random_term () } end,
                (fun ({ Key, Value }) ->
                   ok = tcbdbets:insert (R, { Key, Value }),
+                  false = tcbdbets:insert_new (R, { Key, Value }),
                   [ { Key, Value } ] = tcbdbets:lookup (R, Key),
                   true = tcbdbets:member (R, Key),
+                  ok = tcbdbets:delete (R, Key),
+                  true = tcbdbets:insert_new (R, { Key, Value }),
+                  [ { Key, Value } ] = tcbdbets:lookup (R, Key),
                   ok = tcbdbets:delete (R, Key),
                   [] = tcbdbets:lookup (R, Key),
                   false = tcbdbets:member (R, Key),
