@@ -3,8 +3,7 @@
 
 % TODO: mnesia wants to refer to tables via atoms
 % TODO: ordered_bag (requires driver help)
-% TODO: insert_new (requires driver help)
-% TODO: atomic update counter ... (lots of work required)
+% TODO: atomic update counter (requires driver help?)
 % more TODOs sprinkled inline
 
 -module (tcbdbets).
