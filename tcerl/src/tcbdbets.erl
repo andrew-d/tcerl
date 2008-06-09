@@ -1,20 +1,21 @@
 %% @doc tcbdb-based erlang term storage.  Has either ordered_set or 
 %% ordered_duplicate_bag semantics.
 
+% TODO: enforce access = read
+
 -module (tcbdbets).
 
 % Stuff I don't really understand.
 
 % -export ([ all/0,
-%            bchunk/2,
-%            is_compatible_bchunk_format/2
 %            pid2name/1
 %            safe_fixtable/2
 %            slot/2
 
 % Stuff that is either implemented or is reasonable to consider.
 
--export ([ close/1,
+-export ([ bchunk/2,
+           close/1,
            delete/2,
            delete_all_objects/1,
            delete_object/2,
@@ -22,10 +23,11 @@
            foldl/3,
            foldr/3,
            % from_ets/2,
+           is_compatible_bchunk_format/2,
            info/1,
            info/2,
-           % init_table/2,
-           % init_table/3,
+           init_table/2,
+           init_table/3,
            insert/2,
            % insert_new/2
            % is_tcbdb_file/1
@@ -76,6 +78,34 @@
 %-=====================================================================-
 %-                                Public                               -
 %-=====================================================================-
+
+%% @spec bchunk (tcbdbets (), bchunk_continuation ()) -> { bchunk_continuation (), data () } | '$end_of_table' | { error, Reason }
+%% @doc Returns a list of objects stored in a table. The
+%% exact representation of the returned objects is not
+%% public. The lists of data can be used for initializing a
+%% table by giving the value bchunk to the format option of
+%% the init_table/3 function. The Mnesia application uses
+%% this function for copying open tables.
+%% @end
+
+% TODO: there is a chance to be more efficient here, since we don't have 
+% to run everything through binary_to_term and back again.  however,
+% hold off on tweaking this until we see whether mnesia_ext will use this.
+
+bchunk (TcBdbEts, start) ->
+  case select (TcBdbEts, [ { '_', [], [ '$_' ] } ], default) of
+    { Data, Continuation } when is_list (Data) ->
+      { Continuation, Data };
+    R ->
+      R
+  end;
+bchunk (_TcBdbEts, Continuation) ->
+  case select (Continuation) of
+    { Data, More } when is_list (Data) ->
+      { More, Data };
+    R ->
+      R
+  end.
 
 %% @spec close (tcbdbets ()) -> ok | { error, Reason }
 %% @doc Close a tcbdbets.  
@@ -155,6 +185,17 @@ foldl (Function, Acc0, TcBdbEts = #tcbdbets{}) when is_function (Function, 2) ->
 foldr (Function, Acc0, TcBdbEts = #tcbdbets{}) when is_function (Function, 2) ->
   foldr (Function, Acc0, tcbdb:last (TcBdbEts#tcbdbets.tcerl), TcBdbEts).
 
+%% @spec is_compatible_bchunk_format (tcbdbets (), bchunk_format ()) -> bool ()
+%% @doc Returns true if it would be possible to initialize
+%% the table, using init_table/3 with the option
+%% { format, bchunk }, with objects read with bchunk/2 from
+%% some table T such that calling info (T, bchunk_format)
+%% returns Format.
+%% @end
+
+is_compatible_bchunk_format (_TcBdbEts, _Format = <<1>>) -> true;
+is_compatible_bchunk_format (_TcBdbEts, _Format) -> false.
+
 %% @spec info (tcbdbets ()) -> [ info () ] | undefined
 %% where
 %%   info () = { file_size, integer () } |
@@ -206,7 +247,65 @@ info (TcBdbEts = #tcbdbets{}, Item) ->
     keypos -> TcBdbEts#tcbdbets.keypos;
     type -> TcBdbEts#tcbdbets.type;
     access -> TcBdbEts#tcbdbets.access;
+    bchunk_format -> <<1>>;
     _ -> undefined
+  end.
+
+%% @spec init_table (tcbdbets (), initfun ()) -> ok | { error, Reason }
+%% @equiv init_table (tcbdbets (), initfun (), [ { format, term } ])
+%% @end
+
+init_table (TcBdbEts, InitFun) ->
+  init_table (TcBdbEts, InitFun, [ { format, term } ]).
+
+%% @spec init_table (tcbdbets (), initfun (), [ option () ]) -> ok | { error, Reason }
+%%  where
+%%    option () = { format, Format }
+%% @doc Replaces the existing objects of the table with
+%% objects created by calling the input function InitFun,
+%% see below. The reason for using this function rather than
+%% calling insert/2 is that of efficiency. (TODO)
+%% 
+%% When called with the argument read the function InitFun is
+%% assumed to return end_of_input when there is no more input,
+%% or { Objects, Fun }, where Objects is a list of objects
+%% and Fun is a new input function. Any other value Value is
+%% returned as an error { error, { init_fun, Value } }. Each input
+%% function will be called exactly once, and should an error
+%% occur, the last function is called with the argument close,
+%% the reply of which is ignored.
+%% 
+%% If the type of the table is ordered_set and there is more than
+%% one object with a given key, one of the objects is
+%% chosen. This is not necessarily the last object with the
+%% given key in the sequence of objects returned by the input
+%% functions. Extra objects should be avoided, or the file
+%% will be unnecessarily fragmented. This holds also for
+%% duplicated objects stored in tables of type bag.
+%%
+%% The Options argument is a list of { Key, Val } tuples where
+%% the following values are allowed:
+%% 
+%%    * { format, Format }. Specifies the format of the objects
+%%    returned by the function InitFun. If Format is term
+%%    (the default), InitFun is assumed to return a list
+%%    of tuples. If Format is bchunk, InitFun is assumed
+%%    to return Data as returned by bchunk/2. 
+%% @end
+
+init_table (_TcBdbEts = #tcbdbets{ access = read }, InitFun, _Options) ->
+  catch InitFun (close),
+  { error, { access, read } };
+init_table (TcBdbEts, InitFun, Options) ->
+  delete_all_objects (TcBdbEts),
+  case lists:keysearch (format, 1, Options) of
+    { value, { format, term } } ->
+      init_table_term (TcBdbEts, InitFun);
+    { value, { format, bchunk } } ->
+      % TODO: actual bchunk format
+      init_table_term (TcBdbEts, InitFun);
+    false ->
+      init_table_term (TcBdbEts, InitFun)
   end.
 
 %% @spec insert (tcbdbets (), objects ()) -> ok | { error, Reason }
@@ -551,8 +650,8 @@ select (TcBdbEts = #tcbdbets{}, MatchSpec) ->
 
 %% @spec select (tcbdbets (), matchspec (), integer ()) -> { [ match () ], select_continuation () } | '$end_of_table' | { error, Reason }
 %% @doc Returns the results of applying the match specification
-%% MatchSpec to all or some objects stored in the table
-%% Name. The order of the objects is not specified. See
+%% MatchSpec to all or some objects stored in the table.
+%% The order of the objects is not specified. See
 %% the ERTS User's Guide for a description of match
 %% specifications.
 %% 
@@ -595,7 +694,7 @@ select (TcBdbEts = #tcbdbets{}, MatchSpec, N) when is_integer (N) orelse
   end.
 
 %% @spec select_delete (tcbdbets (), matchspec ()) -> N | { error, Reason }
-%% @doc Deletes each object from the table Name such that
+%% @doc Deletes each object from the table such that
 %% applying the match specification MatchSpec to the object
 %% returns the value true. See the ERTS User's Guide for a
 %% description of match specifications. Returns the number
@@ -636,7 +735,7 @@ sync (TcBdbEts = #tcbdbets{}) ->
 
 %% @spec traverse (tcbdbets (), traverse_func ()) -> Acc | { error, Reason }
 %% @doc 
-%% Applies Fun to each object stored in the table Name in some
+%% Applies Fun to each object stored in the table in some
 %% unspecified order. Different actions are taken depending
 %% on the return value of Fun. The following Fun return values
 %% are allowed:
@@ -682,7 +781,7 @@ traverse (TcBdbEts = #tcbdbets{}, Function) when is_function (Function, 1) ->
 %%   position () = integer ()
 %%   delta () = integer ()
 %% @doc Updates the object with key Key stored in the
-%% table Name of type set by adding Incr to the element at
+%% table of type set by adding Incr to the element at
 %% the Pos:th position. The new counter value is returned. If
 %% no position is specified, the element directly following
 %% the key is updated.
@@ -873,6 +972,24 @@ generate_matches (Compiled, Objects, Acc) ->
 get_value (What, List) ->
   { value, { What, Value } } = lists:keysearch (What, 1, List),
   Value.
+
+% init_table_term
+
+init_table_term (TcBdbEts, InitFun) ->
+  try InitFun (read) of
+    end_of_input -> catch InitFun (close), ok;
+    { Objects, Fun } -> case insert (TcBdbEts, Objects) of
+                          ok -> init_table_term (TcBdbEts, Fun);
+                          R = { error, _Reason } -> catch InitFun (close), R
+                        end;
+    Value -> 
+      catch InitFun (close), 
+      { error, { init_fun, Value } }
+  catch
+    X : Y ->
+      catch InitFun (close),
+      { error, { init_fun_exception, { X, Y } } }
+  end.
 
 % interval_union
 
@@ -1473,6 +1590,57 @@ info_test_ () ->
     fun (_) ->
       tcerl:stop (),
       file:delete ("flass" ++ os:getpid ())
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
+init_table_test_ () ->
+  Copy = fun (Tab, Cont, F) -> 
+           case bchunk (Tab, Cont) of
+             '$end_of_table' -> 
+                fun (read) -> end_of_input; (close) -> ok end;
+             { More, Data } when More =/= error, is_list (Data) -> 
+                fun (read) -> { Data, F (Tab, More, F) }; (close) -> ok end;
+             R = { error, _Reason } -> 
+               fun (read) -> R; (close) -> R end
+           end
+         end,
+  
+  F = fun ({ R, D }) ->
+    T = 
+      ?FORALL (X,
+               fun (_) -> [ { random_term (), random_term () } || 
+                            _ <- lists:seq (1, random:uniform (20)) ] end,
+               (fun (Objects) ->
+                  ok = tcbdbets:delete_all_objects (R),
+                  ok = tcbdbets:insert (R, Objects),
+                  ok = tcbdbets:init_table (D, Copy (R, start, Copy), [ { format, bchunk } ]),
+
+                  RFoldl = 
+                    tcbdbets:foldl (fun (Y, Acc) -> [ Y | Acc ] end, [], R),
+                  DFoldl = 
+                    tcbdbets:foldl (fun (Y, Acc) -> [ Y | Acc ] end, [], D),
+
+                  RFoldl = DFoldl,
+                  true
+                end) (X)),
+
+    ok = fc:flasscheck (1000, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      file:delete ("flass" ++ os:getpid ()),
+      file:delete ("turg" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { ok, D } = tcbdbets:open_file ("turg" ++ os:getpid ()),
+      { R, D }
+    end,
+    fun (_) ->
+      tcerl:stop (),
+      file:delete ("flass" ++ os:getpid ()),
+      file:delete ("turg" ++ os:getpid ())
     end,
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
   }.
