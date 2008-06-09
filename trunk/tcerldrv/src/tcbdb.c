@@ -134,9 +134,9 @@ static ErlDrvEntry tcbdb_driver_entry =
   .driver_flags = ERL_DRV_FLAG_USE_PORT_LOCKING
 };
 
-DRIVER_INIT (libtcbdb);
+DRIVER_INIT (libtcbdberl);
 
-DRIVER_INIT (libtcbdb) /* must match name in driver_entry */
+DRIVER_INIT (libtcbdberl) /* must match name in driver_entry */
 {
   return &tcbdb_driver_entry;
 }
