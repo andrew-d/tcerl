@@ -7,6 +7,7 @@
            first/1,
            get/2,
            info/1, 
+           is_tcbdb_file/1,
            last/1,
            open/2,
            next/2,
@@ -118,6 +119,29 @@ info ({ tcerl, Port }) when is_port (Port) ->
         { no_objects, NoObjects } ];
     { Port, { data, Other } } -> 
       { error, Other }
+  end.
+
+%% @spec is_tcbdb_file (iodata ()) -> true | false | { error, Reason }
+%% @doc Returns true if file Filename is a tcbdb file, false otherwise.
+%% @end
+
+is_tcbdb_file (Filename) when ?is_iodata (Filename) ->
+  case file:open (Filename, [ read, raw, binary ]) of
+    { ok, Fh } ->
+      try file:read (Fh, 33) of
+        { ok, <<"ToKyO CaBiNeT\n", _FormatAndVersion:18/binary, 1:8>> } ->
+          true;
+        { ok, _Data } ->
+          false;
+        eof ->
+          false;
+        R = { error, _Reason } ->
+          R
+      after
+        file:close (Fh)
+      end;
+    R = { error, _Reason } ->
+      R
   end.
 
 %% @spec last (Tcerl::tcerl ()) -> [ binary () ] | { error, Reason }
@@ -571,6 +595,21 @@ first_test_ () ->
     end,
     { with, [ F ] }
   }.
+
+is_tcbdb_test_ () ->
+  { setup,
+    fun tcerl:start/0,
+    fun (_) -> tcerl:stop () end,
+    fun () -> 
+      { ok, R } = tcbdb:open ("flass" ++ os:getpid (),
+                              [ create, truncate, writer ]),
+      ok = tcbdb:close (R),
+      true = tcbdb:is_tcbdb_file ("flass" ++ os:getpid ()),
+      false = tcbdb:is_tcbdb_file ("Makefile.am.local"),
+      file:delete ("flass" ++ os:getpid ()),
+      { error, enoent } = tcbdb:is_tcbdb_file ("flass" ++ os:getpid ()),
+      true
+    end }.
 
 last_test_ () ->
   F = fun (R) ->

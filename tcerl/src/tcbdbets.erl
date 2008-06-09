@@ -8,17 +8,16 @@
 
 -module (tcbdbets).
 
-% Stuff I don't really understand.
+% Stuff I don't really understand where it fits in right now.
 
-% -export ([ 
+% -export ([ all/0,
 %            pid2name/1
 %            safe_fixtable/2
 %            slot/2
 
 % Stuff that is either implemented or is reasonable to consider.
 
--export ([ % all/0,
-           bchunk/2,
+-export ([ bchunk/2,
            close/1,
            delete/2,
            delete_all_objects/1,
@@ -34,7 +33,7 @@
            init_table/3,
            insert/2,
            insert_new/2,
-           % is_tcbdb_file/1
+           is_tcbdbets_file/1,
            last/1,
            lookup/2,
            match/1,
@@ -397,6 +396,16 @@ insert_new (TcBdbEts = #tcbdbets{ keypos = KeyPos },
       end;
     true -> false
   end.
+
+%% @spec is_tcbdbets_file (iodata ()) -> true | false | { error, Reason }
+%% @doc Returns true if the file Filename is a tcbdbets store, false otherwise.
+%% @end
+
+% TODO: this only indicates it is a tcbdb file, not that it contains
+% an Erlang Term Store.  is there some way to indicate/detect this?
+
+is_tcbdbets_file (Filename) when ?is_iodata (Filename) ->
+  tcbdb:is_tcbdb_file (Filename).
 
 %% @spec last (tcbdbets ()) -> Key | '$end_of_table'
 %% @doc Returns the last key stored in the table according to erlang
