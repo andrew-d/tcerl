@@ -7,14 +7,15 @@
 
 % Stuff I don't really understand.
 
-% -export ([ all/0,
+% -export ([ 
 %            pid2name/1
 %            safe_fixtable/2
 %            slot/2
 
 % Stuff that is either implemented or is reasonable to consider.
 
--export ([ bchunk/2,
+-export ([ % all/0,
+           bchunk/2,
            close/1,
            delete/2,
            delete_all_objects/1,
@@ -22,7 +23,7 @@
            first/1,
            foldl/3,
            foldr/3,
-           % from_ets/2,
+           from_ets/2,
            is_compatible_bchunk_format/2,
            info/1,
            info/2,
@@ -170,7 +171,7 @@ first (TcBdbEts = #tcbdbets{}) ->
 foldl (Function, Acc0, TcBdbEts = #tcbdbets{}) when is_function (Function, 2) ->
   foldl (Function, Acc0, tcbdb:first (TcBdbEts#tcbdbets.tcerl), TcBdbEts).
 
-%% @spec foldr (function(), Acc0::acc (), tcbdbets ()) -> Acc1::acc () | { error, Reason }
+%% @spec foldr (function (), Acc0::acc (), tcbdbets ()) -> Acc1::acc () | { error, Reason }
 %%   where
 %%      function () = (any (), acc ()) -> acc ()
 %%      acc () = any ()
@@ -184,6 +185,20 @@ foldl (Function, Acc0, TcBdbEts = #tcbdbets{}) when is_function (Function, 2) ->
 
 foldr (Function, Acc0, TcBdbEts = #tcbdbets{}) when is_function (Function, 2) ->
   foldr (Function, Acc0, tcbdb:last (TcBdbEts#tcbdbets.tcerl), TcBdbEts).
+
+%% @spec from_ets (tcbdbets (), ets_table ()) -> ok | { error, Reason }
+%% @doc Deletes all objects of the table and then
+%% inserts all the objects of the Ets table Tab. The order
+%% in which the objects are inserted is not specified. Since
+%% ets:safe_fixtable/2 is called the Ets table must be public
+%% or owned by the calling process.
+%% TODO: perhaps the order *is* specified, if the ets table is
+%% ordered_set ?
+%% @end
+
+from_ets (TcBdbEts = #tcbdbets{}, Tab) ->
+  ets:safe_fixtable (Tab, true),
+  init_table (TcBdbEts, from_ets_init (start, Tab)).
 
 %% @spec is_compatible_bchunk_format (tcbdbets (), bchunk_format ()) -> bool ()
 %% @doc Returns true if it would be possible to initialize
@@ -959,6 +974,22 @@ foldr (Function, Acc, [ KeyBin ], TcBdbEts) ->
       R
   end.
 
+% from_ets_init
+
+from_ets_init (start, Tab) ->
+  from_ets_init_finish (ets:select (Tab, [ { '_', [], [ '$_' ] } ], 100), Tab);
+from_ets_init (Continuation, Tab) ->
+  from_ets_init_finish (ets:select (Continuation), Tab).
+
+from_ets_init_finish ('$end_of_table', Tab) ->
+  fun (read) -> end_of_input;
+      (close) -> ets:safe_fixtable (Tab, false)
+  end;
+from_ets_init_finish ({ Matches, Continuation }, Tab) ->
+  fun (read) -> { Matches, from_ets_init (Continuation, Tab) };
+      (close) -> ets:safe_fixtable (Tab, false)
+  end.
+
 % generate_matches
 
 generate_matches (Compiled, Objects, Acc) ->
@@ -1548,6 +1579,45 @@ foldr_test_ () ->
                 end) (X)),
 
     ok = fc:flasscheck (100, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      Tab = ets:new (?MODULE, [ public, ordered_set ]),
+      tcerl:start (),
+      file:delete ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ("flass" ++ os:getpid ()),
+      { Tab, R }
+    end,
+    fun ({ Tab, _ }) ->
+      ets:delete (Tab),
+      tcerl:stop (),
+      file:delete ("flass" ++ os:getpid ())
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
+from_ets_test_ () ->
+  F = fun ({ Tab, R }) ->
+    T = 
+      ?FORALL (X,
+               fun (_) -> [ { random_term (), random_term () } || 
+                            _ <- lists:seq (1, random:uniform (20)) ] end,
+               (fun (Objects) ->
+                  true = ets:delete_all_objects (Tab),
+                  true = ets:insert (Tab, Objects),
+                  ok = tcbdbets:from_ets (R, Tab),
+
+                  RFoldl = 
+                    tcbdbets:foldl (fun (Y, Acc) -> [ Y | Acc ] end, [], R),
+                  EtsFoldl = 
+                    ets:foldl (fun (Y, Acc) -> [ Y | Acc ] end, [], Tab),
+
+                  RFoldl = EtsFoldl,
+                  true
+                end) (X)),
+
+    ok = fc:flasscheck (1000, 10, T)
   end,
 
   { setup,
