@@ -25,7 +25,6 @@
          ]).
 
 -ifdef (HAVE_EUNIT).
--include_lib ("flasscheck/include/quickcheck.hrl").
 -include_lib ("eunit/include/eunit.hrl").
 -endif.
 
@@ -541,6 +540,21 @@ random_binary () ->
 random_bool () ->
   random:uniform (2) =:= 1.
 
+% ok, don't want to depend upon quickcheck, so here's some cheese
+
+-define (FORALL (Var, Gen, Cond), fun (A) -> Var = (Gen) (A), Cond end).
+
+flasscheck (N, Limit, P) -> flasscheck (1, N, math:log (Limit), P).
+
+flasscheck (M, N, LogLimit, P) when M =< N -> 
+  Size = trunc (math:exp (LogLimit * M / N)),
+  true = P (Size),
+  io:format (".", []),
+  flasscheck (M + 1, N, LogLimit, P);
+flasscheck (_, N, _, _) -> 
+  io:format ("~n~p tests passed~n", [ N ]),
+  ok.
+
 %-=====================================================================-
 %-                                Tests                                -
 %-=====================================================================-
@@ -579,7 +593,7 @@ first_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -634,7 +648,7 @@ last_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -670,7 +684,7 @@ next_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -733,7 +747,7 @@ out_exact_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -778,7 +792,7 @@ put_dup_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -835,7 +849,7 @@ prefix_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -874,7 +888,7 @@ prev_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -934,7 +948,7 @@ range_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -989,7 +1003,7 @@ range_lb_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -1044,7 +1058,7 @@ range_ub_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -1077,7 +1091,7 @@ roundtrip_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -1112,7 +1126,7 @@ sync_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (20, 10, T)
+    ok = flasscheck (20, 10, T)
   end,
 
   { setup,
@@ -1146,7 +1160,7 @@ vanish_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (20, 10, T)
+    ok = flasscheck (20, 10, T)
   end,
 
   { setup,

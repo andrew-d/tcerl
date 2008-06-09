@@ -62,7 +62,6 @@
          ]).
 
 -ifdef (HAVE_EUNIT).
--include_lib ("flasscheck/include/quickcheck.hrl").
 -include_lib ("eunit/include/eunit.hrl").
 -endif.
 
@@ -1431,6 +1430,21 @@ random_matchspec () ->
                { M, random_guard (V), random_matchbody (V) } end) () ||
     _ <- lists:seq (1, random:uniform (3)) ].
 
+% ok, don't want to depend upon quickcheck, so here's some cheese
+
+-define (FORALL (Var, Gen, Cond), fun (A) -> Var = (Gen) (A), Cond end).
+
+flasscheck (N, Limit, P) -> flasscheck (1, N, math:log (Limit), P).
+
+flasscheck (M, N, LogLimit, P) when M =< N -> 
+  Size = trunc (math:exp (LogLimit * M / N)),
+  true = P (Size),
+  io:format (".", []),
+  flasscheck (M + 1, N, LogLimit, P);
+flasscheck (_, N, _, _) -> 
+  io:format ("~n~p tests passed~n", [ N ]),
+  ok.
+
 %-=====================================================================-
 %-                                Tests                                -
 %-=====================================================================-
@@ -1463,7 +1477,7 @@ delete_all_objects_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (20, 10, T)
+    ok = flasscheck (20, 10, T)
   end,
 
   { setup,
@@ -1520,7 +1534,7 @@ delete_object_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -1561,7 +1575,7 @@ first_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -1599,7 +1613,7 @@ foldl_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (100, 10, T)
+    ok = flasscheck (100, 10, T)
   end,
 
   { setup,
@@ -1639,7 +1653,7 @@ foldr_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (100, 10, T)
+    ok = flasscheck (100, 10, T)
   end,
 
   { setup,
@@ -1678,7 +1692,7 @@ from_ets_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -1756,7 +1770,7 @@ init_table_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -1799,7 +1813,7 @@ last_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -1849,7 +1863,7 @@ match_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -1890,7 +1904,7 @@ match_delete_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -1942,7 +1956,7 @@ match_object_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -1977,7 +1991,7 @@ next_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -2012,7 +2026,7 @@ prev_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -2051,7 +2065,7 @@ roundtrip_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -2101,7 +2115,7 @@ select_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -2141,7 +2155,7 @@ select_delete_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -2178,7 +2192,7 @@ sync_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (20, 10, T)
+    ok = flasscheck (20, 10, T)
   end,
 
   { setup,
@@ -2214,7 +2228,7 @@ to_ets_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (100, 10, T)
+    ok = flasscheck (100, 10, T)
   end,
 
   { setup,
@@ -2268,7 +2282,7 @@ traverse_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
@@ -2305,7 +2319,7 @@ update_counter_test_ () ->
                   true
                 end) (X)),
 
-    ok = fc:flasscheck (1000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,
