@@ -18,7 +18,7 @@ Both pieces use automake to build.[[#1 1]]
 
   * You need tokyocabinet with development headers; I use version 1.2.5, and haven't tested other versions.
         * Ubuntu (hardy): aptitude install libtokyocabinet-dev
-		* others: Download and build the [http://downloads.sourceforge.net/tokyocabinet/tokyocabinet-1.2.5.tar.gz?modtime=1209093521&big_mirror=0 source]
+        * others: Download and build the [http://downloads.sourceforge.net/tokyocabinet/tokyocabinet-1.2.5.tar.gz?modtime=1209093521&big_mirror=0 source]
 
   * You need erl_driver.h.
         * Ubuntu/Debian: aptitude install erlang-dev
