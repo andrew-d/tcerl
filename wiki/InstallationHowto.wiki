@@ -1,13 +1,51 @@
-#summary One-sentence summary of this page.
+﻿#summary Installation Notes
+#labels Phase-Deploy,Featured
 
-= Introduction =
+= Overview =
 
-Add your content here.
+There are two pieces: tcerldrv, the C driver; and tcerl, the Erlang code.
+Both pieces use automake to build.[[#1 1]]
 
+= tcerldrv =
 
-= Details =
+  * The default prefix is "/usr".  If you don't like that, make sure to use the --prefix configure option.
 
-Add your content here.  Format your content with:
-  * Text in *bold* or _italic_
-  * Headings, paragraphs, and lists
-  * Automatic links to other wiki pages
+  * You need pkg-config.
+        * Ubuntu/Debian: aptitude install pkg-config
+        * OS/X (fink): apt-get install pkgconfig
+        * freebsd: [http://www.freshports.org/devel/pkg-config install the port]
+        * others: please let me know so i can update here
+
+  * You need tokyocabinet with development headers; I use version 1.2.5, and haven't tested other versions.
+        * Ubuntu (hardy): aptitude install libtokyocabinet-dev
+		* others: Download and build the [http://downloads.sourceforge.net/tokyocabinet/tokyocabinet-1.2.5.tar.gz?modtime=1209093521&big_mirror=0 source]
+
+  * You need erl_driver.h.
+        * Ubuntu/Debian: aptitude install erlang-dev
+        * OS/X (fink): apt-get install erlang-otp
+        * freebsd: [http://www.freshports.org/lang/erlang install the port]
+        * others: please let me know so i can update here
+
+= tcerl =
+
+  * The default prefix is wherever tcerldrv was installed, if that can be found in the path, otherwise "/usr".  If you don't like that, make sure to use the --prefix configure option.
+        * If you chose a different prefix when installing tcerldrv, use application:set_env/3 with the tcerl application variable 'tcerldrvprefix' to let the code know where to look.
+
+  * You need a working Erlang installation.
+        * Ubuntu/Debian: aptitude install erlang
+        * OS/X (fink): apt-get install erlang-otp
+        * freebsd: [http://www.freshports.org/lang/erlang install the port]
+        * others: please let me know so i can update here
+
+  * You need [http://support.process-one.net/doc/display/CONTRIBS/EUnit eunit] to run the tests.  It's advised you run the tests if you are installing onto an untested environment.
+        * If the tests fail, output is in tests/{{{*}}}.test.out
+
+= Tested Environments =
+
+  * Ubuntu i386 gusty
+
+= Footnotes =
+
+== 1 ==
+
+They are actually built from source using [http://code.google.com/p/fwtemplates framewerk]; tcerldrv is an [http://code.google.com/p/fwtemplates/wiki/FwTemplateCWalkthrough fw-template-c] project and tcerl is an [http://code.google.com/p/fwtemplates/wiki/FwTemplateErlangWalkthrough fw-template-erlang] project.  However dist tarballs are supposed to be indistinguishable from other automake dist tarballs, so you can ignore this.
