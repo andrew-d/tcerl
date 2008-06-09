@@ -3,17 +3,17 @@
 INCLUDES += @TOKYOCABINET_CFLAGS@
 
 lib_LTLIBRARIES =		\
-  libtcbdb.la
+  libtcbdberl.la
 
-libtcbdb_la_SOURCES = 		\
+libtcbdberl_la_SOURCES = 	\
   my_erl_marshal.c		\
-  tcbdb.c
+  tcbdberl.c
 
-libtcbdb_la_LIBADD = 		\
+libtcbdberl_la_LIBADD = 	\
   @FW_PKGCONFIG_PREREQS_LIBS@	\
   @TOKYOCABINET_LIBS@
 
-libtcbdb_la_LDFLAGS = 	\
+libtcbdberl_la_LDFLAGS = 	\
   -module -avoid-version
 
 # ok, this is cheating, but ... 
