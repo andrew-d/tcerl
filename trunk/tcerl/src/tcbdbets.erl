@@ -1,5 +1,6 @@
 %% @doc tcbdb-based erlang term storage.  Has either ordered_set or 
 %% ordered_duplicate_bag semantics.
+%% @end
 
 % TODO: mnesia wants to refer to tables via atoms
 % TODO: ordered_bag (requires driver help)
