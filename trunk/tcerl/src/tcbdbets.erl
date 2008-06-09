@@ -1,7 +1,6 @@
 %% @doc tcbdb-based erlang term storage.  Has either ordered_set or 
 %% ordered_duplicate_bag semantics.
 
-% TODO: enforce access = read
 % TODO: mnesia wants to refer to tables via atoms
 % TODO: ordered_bag (requires driver help)
 % TODO: insert_new (requires driver help)
@@ -124,6 +123,8 @@ close (TcBdbEts = #tcbdbets{}) ->
 %% @doc Delete all records associated with Key.  
 %% @end
 
+delete (_TcBdbEts = #tcbdbets{ access = read }, _Key) ->
+  { error, read_only };
 delete (TcBdbEts = #tcbdbets{}, Key) ->
   tcbdb:out (TcBdbEts#tcbdbets.tcerl, 
              erlang:term_to_binary (Key, [ { minor_version, 1 } ])).
@@ -132,6 +133,8 @@ delete (TcBdbEts = #tcbdbets{}, Key) ->
 %% @doc Deletes all objects from a table.
 %% @end
 
+delete_all_objects (_TcBdbEts = #tcbdbets{ access = read }) ->
+  { error, read_only };
 delete_all_objects (TcBdbEts = #tcbdbets{}) ->
   tcbdb:vanish (TcBdbEts#tcbdbets.tcerl).
 
@@ -141,6 +144,8 @@ delete_all_objects (TcBdbEts = #tcbdbets{}) ->
 %% objects with a given key.
 %% @end
 
+delete_object (_TcBdbEts = #tcbdbets{ access = read }, _Object) ->
+  { error, read_only };
 delete_object (TcBdbEts = #tcbdbets{}, Object) when is_tuple (Object) ->
   Key = element (TcBdbEts#tcbdbets.keypos, Object),
   tcbdb:out_exact (TcBdbEts#tcbdbets.tcerl,
@@ -201,6 +206,8 @@ foldr (Function, Acc0, TcBdbEts = #tcbdbets{}) when is_function (Function, 2) ->
 %% ordered_set ?
 %% @end
 
+from_ets (_TcBdbEts = #tcbdbets{ access = read }, _Tab) ->
+  { error, read_only };
 from_ets (TcBdbEts = #tcbdbets{}, Tab) ->
   ets:safe_fixtable (Tab, true),
   init_table (TcBdbEts, from_ets_init (start, Tab)).
@@ -315,7 +322,7 @@ init_table (TcBdbEts, InitFun) ->
 
 init_table (_TcBdbEts = #tcbdbets{ access = read }, InitFun, _Options) ->
   catch InitFun (close),
-  { error, { access, read } };
+  { error, read_only };
 init_table (TcBdbEts, InitFun, Options) ->
   delete_all_objects (TcBdbEts),
   case lists:keysearch (format, 1, Options) of
@@ -336,6 +343,8 @@ init_table (TcBdbEts, InitFun, Options) ->
 %% and the table type is ordered_set, the old object will be replaced.
 %% @end
 
+insert (_TcBdbEts = #tcbdbets{ access = read }, _Object) ->
+  { error, read_only };
 insert (TcBdbEts = #tcbdbets{}, Object) when is_tuple (Object) ->
   insert (TcBdbEts, [ Object ]);
 insert (_TcBdbEts, []) ->
@@ -372,6 +381,8 @@ insert (TcBdbEts = #tcbdbets{ keypos = KeyPos },
 %% and true returned.
 %% @end
 
+insert_new (_TcBdbEts = #tcbdbets{ access = read }, _Object) ->
+  { error, read_only };
 insert_new (TcBdbEts, Object) when is_tuple (Object) ->
   insert_new (TcBdbEts, [ Object ]);
 insert_new (TcBdbEts = #tcbdbets{ keypos = KeyPos }, 
@@ -474,6 +485,8 @@ match (TcBdbEts = #tcbdbets{}, Pattern, N) when is_integer (N) orelse
 %% objects with the right key are matched.
 %% @end
 
+match_delete (_TcBdbEts = #tcbdbets{ access = read }, _Pattern) ->
+  { error, read_only };
 match_delete (TcBdbEts = #tcbdbets{}, Pattern) ->
   select_delete (TcBdbEts, [ { Pattern, [], [ true ] } ]).
 
@@ -755,6 +768,8 @@ select (TcBdbEts = #tcbdbets{}, MatchSpec, N) when is_integer (N) orelse
 % than selecting and deleting.  to take advantage, however, we'd
 % need to move the match spec implementation into the driver.
 
+select_delete (_TcBdbEts = #tcbdbets{ access = read }, _MatchSpec) ->
+  { error, read_only };
 select_delete (TcBdbEts = #tcbdbets{}, MatchSpec) ->
   Intervals = analyze_matchspec (MatchSpec, TcBdbEts#tcbdbets.keypos),
 
@@ -854,6 +869,8 @@ traverse (TcBdbEts = #tcbdbets{}, Function) when is_function (Function, 1) ->
 
 % TODO: don't actually do a read-modify-write
 
+update_counter (_TcBdbEts = #tcbdbets{ access = read }, _Key, _Increment) ->
+  { error, read_only };
 update_counter (TcBdbEts = #tcbdbets{}, 
                 Key,
                 Increment) when is_integer (Increment) ->
