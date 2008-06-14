@@ -21,6 +21,7 @@
            range_lb/4,
            range_ub/4,
            sync/1,
+           unlink/1,
            vanish/1
          ]).
 
@@ -474,6 +475,13 @@ sync ({ tcerl, Port }) ->
     { Port, { data, <<"ok">> } } -> ok;
     { Port, { data, Other } } -> { error, Other }
   end.
+
+%% @spec unlink (Tcerl::tcerl ()) -> true
+%% @doc Unlinks the port underlying the table from the current process.
+%% @end
+
+unlink ({ tcerl, Port }) ->
+  erlang:unlink (Port).
 
 %% @spec vanish (Tcerl::tcerl ()) -> ok | { error, Reason }
 %% @doc Remove all records.  Corresponds to tcbdbvanish ().

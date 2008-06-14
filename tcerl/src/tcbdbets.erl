@@ -35,6 +35,7 @@
            insert/2,
            insert_new/2,
            is_tcbdbets_file/1,
+           unlink/1,
            last/1,
            lookup/2,
            match/1,
@@ -267,7 +268,7 @@ info (TcBdbEts = #tcbdbets{}, Item) ->
         List when is_list (List) -> get_value (X, List);
         undefined -> undefined
       end;
-    filename -> TcBdbEts#tcbdbets.filename;     % hmmm ... parse transform (?)
+    filename -> TcBdbEts#tcbdbets.filename; 
     keypos -> TcBdbEts#tcbdbets.keypos;
     type -> TcBdbEts#tcbdbets.type;
     access -> TcBdbEts#tcbdbets.access;
@@ -406,6 +407,13 @@ insert_new (TcBdbEts = #tcbdbets{ keypos = KeyPos },
 
 is_tcbdbets_file (Filename) when ?is_iodata (Filename) ->
   tcbdb:is_tcbdb_file (Filename).
+
+%% @spec unlink (tcbdbets ()) -> true
+%% @doc Unlinks the port underlying the term store from the current process.
+%% @end
+
+unlink (TcBdbEts = #tcbdbets{}) ->
+  tcbdb:unlink (TcBdbEts#tcbdbets.tcerl).
 
 %% @spec last (tcbdbets ()) -> Key | '$end_of_table'
 %% @doc Returns the last key stored in the table according to erlang
