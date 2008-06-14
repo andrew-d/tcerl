@@ -228,20 +228,39 @@ random_matchspec () ->
                { M, random_guard (V), random_matchbody (V) } end) () ||
     _ <- lists:seq (1, random:uniform (3)) ].
 
+random_variable_or_term () ->
+  case random:uniform (2) of
+    1 -> random_term ();
+    2 -> random_variable ()
+  end.
+
+random_pattern (N) ->
+  list_to_tuple ([ random_variable_or_term () || _ <- lists:seq (1, N) ]).
+
 %-=====================================================================-
 %-                                Tests                                -
 %-=====================================================================-
 
-roundtrip_test_ () ->
-  F = fun (Tab) ->
-    T =
+%flass (_File, _Line) -> ok.
+
+match_object_test_ () ->
+  F = fun ({ Tab, R }) ->
+    T = 
       ?FORALL (X,
-               fun (_) -> { random_term (), random_term () } end,
-               (fun ({ Key, Value }) ->
+               fun (_) -> 
+                { random_term (), random_term (), random_pattern (2) }
+               end,
+               (fun ({ Key, Value, Pattern }) ->
+                  RPattern = list_to_tuple ([ R | tuple_to_list (Pattern) ]),
+                  TabPattern = list_to_tuple ([ Tab | tuple_to_list (Pattern) ]),
+                  TcbdbMatch = mnesia:dirty_match_object (RPattern),
+                  EtsMatch = mnesia:dirty_match_object (TabPattern),
+                  FixEtsMatch = [ { R, K, V } || { _, K, V } <- EtsMatch ],
+                  TcbdbMatch = FixEtsMatch,
+
+                  ok = mnesia:dirty_write ({ R, Key, Value }),
                   ok = mnesia:dirty_write ({ Tab, Key, Value }),
-                  [ { Tab, Key, Value } ] = mnesia:dirty_read ({ Tab, Key }),
-                  ok = mnesia:dirty_delete ({ Tab, Key }),
-                  [] = mnesia:dirty_read ({ Tab, Key }),
+
                   true
                 end) (X)),
 
@@ -258,7 +277,10 @@ roundtrip_test_ () ->
       mnesia:create_table (testtab, 
                            [ { type, { external, ordered_set, ?MODULE } },
                              { external_copies, [ node () ] } ]),
-      testtab
+      mnesia:create_table (etstab, 
+                           [ { type, ordered_set },
+                             { ram_copies, [ node () ] } ]),
+      { etstab, testtab }
     end,
     fun (_) ->
       mnesia:stop (),
@@ -267,8 +289,6 @@ roundtrip_test_ () ->
     end,
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
   }.
-
-%flass (_File, _Line) -> ok.
 
 next_test_ () ->
   F = fun ({ Tab, R }) ->
@@ -345,6 +365,42 @@ prev_test_ () ->
                            [ { type, ordered_set },
                              { ram_copies, [ node () ] } ]),
       { etstab, testtab }
+    end,
+    fun (_) ->
+      mnesia:stop (),
+      tcerl:stop (),
+      os:cmd ("rm -rf Mnesia.*")
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
+roundtrip_test_ () ->
+  F = fun (Tab) ->
+    T =
+      ?FORALL (X,
+               fun (_) -> { random_term (), random_term () } end,
+               (fun ({ Key, Value }) ->
+                  ok = mnesia:dirty_write ({ Tab, Key, Value }),
+                  [ { Tab, Key, Value } ] = mnesia:dirty_read ({ Tab, Key }),
+                  ok = mnesia:dirty_delete ({ Tab, Key }),
+                  [] = mnesia:dirty_read ({ Tab, Key }),
+                  true
+                end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      mnesia:stop (),
+      os:cmd ("rm -rf Mnesia.*"),
+      mnesia:start (),
+      mnesia:change_table_copy_type (schema, node (), disc_copies),
+      mnesia:create_table (testtab, 
+                           [ { type, { external, ordered_set, ?MODULE } },
+                             { external_copies, [ node () ] } ]),
+      testtab
     end,
     fun (_) ->
       mnesia:stop (),
