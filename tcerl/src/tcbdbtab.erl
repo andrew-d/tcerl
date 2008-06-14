@@ -243,6 +243,93 @@ random_pattern (N) ->
 
 %flass (_File, _Line) -> ok.
 
+delete_test_ () ->
+  F = fun (R) ->
+    { ok, _ } = 
+      file:read_file_info 
+        (filename:join ([ mnesia:system_info (directory),
+                          atom_to_list (R) ++ ".tcb" ])),
+    mnesia:stop (),
+    mnesia:start (),
+    { atomic, ok } = mnesia:delete_table (R),
+    { error, enoent } = 
+      file:read_file_info 
+        (filename:join ([ mnesia:system_info (directory),
+                          atom_to_list (R) ++ ".tcb" ])),
+    ok
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      mnesia:stop (),
+      os:cmd ("rm -rf Mnesia.*"),
+      mnesia:start (),
+      mnesia:change_table_copy_type (schema, node (), disc_copies),
+      mnesia:create_table (testtab, 
+                           [ { type, { external, ordered_set, ?MODULE } },
+                             { external_copies, [ node () ] } ]),
+      testtab
+    end,
+    fun (_) ->
+      mnesia:stop (),
+      tcerl:stop (),
+      os:cmd ("rm -rf Mnesia.*")
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
+delete_object_test_ () ->
+  F = fun ({ Tab, R }) ->
+    T = 
+      ?FORALL (X,
+               fun (_) -> 
+                { random_term (), random_term (), random_pattern (2) }
+               end,
+               (fun ({ Key, Value, Pattern }) ->
+                  RPattern = list_to_tuple ([ R | tuple_to_list (Pattern) ]),
+                  TabPattern = list_to_tuple ([ Tab | tuple_to_list (Pattern) ]),
+                  ok = mnesia:dirty_delete_object (RPattern),
+                  ok = mnesia:dirty_delete_object (TabPattern),
+
+                  RConts = mnesia:dirty_match_object ({ R, '_', '_' }),
+                  TabConts = mnesia:dirty_match_object ({ Tab, '_', '_' }),
+                  TabFix = [ { R, K, V } || { _, K, V } <- TabConts ],
+                  RConts = TabFix,
+
+                  ok = mnesia:dirty_write ({ R, Key, Value }),
+                  ok = mnesia:dirty_write ({ Tab, Key, Value }),
+
+                  true
+                end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      mnesia:stop (),
+      os:cmd ("rm -rf Mnesia.*"),
+      mnesia:start (),
+      mnesia:change_table_copy_type (schema, node (), disc_copies),
+      mnesia:create_table (testtab, 
+                           [ { type, { external, ordered_set, ?MODULE } },
+                             { external_copies, [ node () ] } ]),
+      mnesia:create_table (etstab, 
+                           [ { type, ordered_set },
+                             { ram_copies, [ node () ] } ]),
+      { etstab, testtab }
+    end,
+    fun (_) ->
+      mnesia:stop (),
+      tcerl:stop (),
+      os:cmd ("rm -rf Mnesia.*")
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
+
 first_test_ () ->
   F = fun ({ Tab, R }) ->
     T = 
