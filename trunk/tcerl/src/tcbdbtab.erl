@@ -243,6 +243,90 @@ random_pattern (N) ->
 
 %flass (_File, _Line) -> ok.
 
+first_test_ () ->
+  F = fun ({ Tab, R }) ->
+    T = 
+      ?FORALL (X,
+               fun (_) -> { random_term (), random_term () } end,
+               (fun ({ Key, Value }) ->
+                  EtsFirst = mnesia:dirty_first (Tab),
+                  TcbdbFirst = mnesia:dirty_first (R),
+                  EtsFirst = TcbdbFirst,
+
+                  ok = mnesia:dirty_write ({ Tab, Key, Value }),
+                  ok = mnesia:dirty_write ({ R, Key, Value }),
+
+                  true
+                end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      mnesia:stop (),
+      os:cmd ("rm -rf Mnesia.*"),
+      mnesia:start (),
+      mnesia:change_table_copy_type (schema, node (), disc_copies),
+      mnesia:create_table (testtab, 
+                           [ { type, { external, ordered_set, ?MODULE } },
+                             { external_copies, [ node () ] } ]),
+      mnesia:create_table (etstab, 
+                           [ { type, ordered_set },
+                             { ram_copies, [ node () ] } ]),
+      { etstab, testtab }
+    end,
+    fun (_) ->
+      mnesia:stop (),
+      tcerl:stop (),
+      os:cmd ("rm -rf Mnesia.*")
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
+last_test_ () ->
+  F = fun ({ Tab, R }) ->
+    T = 
+      ?FORALL (X,
+               fun (_) -> { random_term (), random_term () } end,
+               (fun ({ Key, Value }) ->
+                  EtsLast = mnesia:dirty_last (Tab),
+                  TcbdbLast = mnesia:dirty_last (R),
+                  EtsLast = TcbdbLast,
+
+                  ok = mnesia:dirty_write ({ Tab, Key, Value }),
+                  ok = mnesia:dirty_write ({ R, Key, Value }),
+
+                  true
+                end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      mnesia:stop (),
+      os:cmd ("rm -rf Mnesia.*"),
+      mnesia:start (),
+      mnesia:change_table_copy_type (schema, node (), disc_copies),
+      mnesia:create_table (testtab, 
+                           [ { type, { external, ordered_set, ?MODULE } },
+                             { external_copies, [ node () ] } ]),
+      mnesia:create_table (etstab, 
+                           [ { type, ordered_set },
+                             { ram_copies, [ node () ] } ]),
+      { etstab, testtab }
+    end,
+    fun (_) ->
+      mnesia:stop (),
+      tcerl:stop (),
+      os:cmd ("rm -rf Mnesia.*")
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
 match_object_test_ () ->
   F = fun ({ Tab, R }) ->
     T = 
