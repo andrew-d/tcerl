@@ -285,6 +285,37 @@ first_test_ () ->
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
   }.
 
+info_test_ () ->
+  F = fun (R) ->
+    true = is_list (mnesia:table_info (R, all)),
+    read_write = mnesia:table_info (R, access_mode),
+    0 = mnesia:table_info (R, size),
+    true = is_integer (mnesia:table_info (R, memory)),
+    ordered_set = mnesia:table_info (R, type),
+    { external_copies, ?MODULE } = mnesia:table_info (R, storage_type),
+    ok
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      mnesia:stop (),
+      os:cmd ("rm -rf Mnesia.*"),
+      mnesia:start (),
+      mnesia:change_table_copy_type (schema, node (), disc_copies),
+      mnesia:create_table (testtab, 
+                           [ { type, { external, ordered_set, ?MODULE } },
+                             { external_copies, [ node () ] } ]),
+      testtab
+    end,
+    fun (_) ->
+      mnesia:stop (),
+      tcerl:stop (),
+      os:cmd ("rm -rf Mnesia.*")
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
 last_test_ () ->
   F = fun ({ Tab, R }) ->
     T = 
