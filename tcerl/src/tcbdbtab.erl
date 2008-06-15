@@ -1,3 +1,20 @@
+%% @doc Mnesia table driver for tcbdbets.
+%% Example: 
+%% <br/><pre>
+%% mnesia:create_table (testtab, 
+%%                      [ { type, { external, ordered_set, tcbdbtab } },
+%%                        { external_copies, [ node () ] },
+%%                        { attributes, [ key, count ] },
+%%                        { user_properties, [ { deflate, true },
+%%                                             { bucket_array_size, 10000 } ] } ]),
+%% </pre><br/>
+%% Options to tcbdbets:open_file/1 are passed via user_properties.  Since
+%% user_properties must contain tuples, the non-tuple options to 
+%% tcbdbets:open_file/1 are indicated via { Arg, true } tuples, e.g.,
+%% in the above example the { deflate, true } tuple activates the 
+%% deflate option to tcbdbets:open_file/1.
+%% @end
+
 -module (tcbdbtab).
 
 -ifdef (HAVE_MNESIA_EXT).
@@ -36,51 +53,83 @@
 %-                                Public                               -
 %-=====================================================================-
 
+%% @hidden
+
 info (Tab, What) when is_atom (Tab) ->
   tcbdbets:info (get_port (Tab), What).
+
+%% @hidden
 
 lookup (Tab, Key) when is_atom (Tab) ->
   tcbdbets:lookup (get_port (Tab), Key).
 
+%% @hidden
+
 insert (Tab, Objects) when is_atom (Tab) ->
   tcbdbets:insert (get_port (Tab), Objects).
+
+%% @hidden
 
 match_object (Tab, Pattern) when is_atom (Tab) ->
   tcbdbets:match_object (get_port (Tab), Pattern).
 
+%% @hidden
+
 select (Cont) ->
   tcbdbets:select (Cont).
+
+%% @hidden
 
 select (Tab, MatchSpec) when is_atom (Tab) ->
   tcbdbets:select (get_port (Tab), MatchSpec).
 
+%% @hidden
+
 select (Tab, MatchSpec, Count) when is_atom (Tab) ->
   tcbdbets:select (get_port (Tab), MatchSpec, Count).
+
+%% @hidden
 
 delete (Tab, Key) when is_atom (Tab) ->
   tcbdbets:delete (get_port (Tab), Key).
 
+%% @hidden
+
 match_delete (Tab, Pattern) when is_atom (Tab) ->
   tcbdbets:match_delete (get_port (Tab), Pattern).
+
+%% @hidden
 
 first (Tab) when is_atom (Tab) ->
   tcbdbets:first (get_port (Tab)).
 
+%% @hidden
+
 next (Tab, Key) when is_atom (Tab) ->
   tcbdbets:next (get_port (Tab), Key).
+
+%% @hidden
 
 last (Tab) when is_atom (Tab) ->
   tcbdbets:last (get_port (Tab)).
 
+%% @hidden
+
 prev (Tab, Key) when is_atom (Tab) ->
   tcbdbets:prev (get_port (Tab), Key).
+
+%% @hidden
 
 % ??? 
 slot (Tab, _N) when is_atom (Tab) ->
   { error, slot_not_supported }.
 
+%% @hidden
+
 update_counter (Tab, Key, Incr) when is_atom (Tab) ->
   tcbdbets:update_counter (get_port (Tab), Key, Incr).
+
+%% @hidden
 
 create_table (Tab, Cs) when is_atom (Tab) ->
   Dir = mnesia_lib:val (dir),
@@ -100,6 +149,8 @@ create_table (Tab, Cs) when is_atom (Tab) ->
   mnesia_lib:set ({ Tab, tcbdb_port }, Port),
   Tab.
 
+%% @hidden
+
 delete_table (Tab) when is_atom (Tab) ->
   Port = get_port (Tab),
   FileName = tcbdbets:info (Port, filename),
@@ -108,14 +159,22 @@ delete_table (Tab) when is_atom (Tab) ->
 
 % TODO: indices
 
+%% @hidden
+
 init_index (Tab, _Pos) when is_atom (Tab) ->
   ok.
+
+%% @hidden
 
 add_index (Tab, _Pos) when is_atom (Tab) ->
   ok.
 
+%% @hidden
+
 delete_index (Tab, _Pos) when is_atom (Tab) ->
   ok.
+
+%% @hidden
 
 fixtable (Tab, _Bool) when is_atom (Tab) ->
   true.
