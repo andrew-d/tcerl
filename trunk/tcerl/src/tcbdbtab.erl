@@ -40,7 +40,8 @@
            init_index/2,
            add_index/2,
            delete_index/2,
-           fixtable/2 
+           fixtable/2,
+           init_table/3
          ]).
 
 -ifdef (HAVE_EUNIT).
@@ -178,6 +179,11 @@ delete_index (Tab, _Pos) when is_atom (Tab) ->
 
 fixtable (Tab, _Bool) when is_atom (Tab) ->
   true.
+
+%% @hidden
+
+init_table (Tab, InitFun, _Sender) when is_atom (Tab) ->
+  tcbdbets:init_table (get_port (Tab), InitFun).
 
 %-=====================================================================-
 %-                               Private                               -
