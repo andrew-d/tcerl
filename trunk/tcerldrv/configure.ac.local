@@ -43,5 +43,9 @@ test -d "/sw/lib/erlang/usr/include/" && {
   CPPFLAGS="$CPPFLAGS -I/sw/lib/erlang/usr/include/"
 }
 
+test -d "/usr/local/lib/erlang/usr/include/" && {
+  CPPFLAGS="$CPPFLAGS -I/usr/local/lib/erlang/usr/include/"
+}
+
 AC_CHECK_HEADERS([erl_driver.h], ,
                  [AC_MSG_ERROR([ need erl_driver.h to proceed ])])
