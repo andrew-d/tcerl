@@ -12,7 +12,7 @@ AC_CHECK_HEADER([erl_marshal.h],
                 [AC_MSG_ERROR([can't find erl_marshal.h; under debian you need to install erlang-src])], 
                 [#include <erl_interface.h>])
 
-LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${EIBASE}/lib"
+LDFLAGS="$LDFLAGS -L${EIBASE}/lib"
 AC_CHECK_LIB([ei],
              [ei_set_compat_rel],
              [],
