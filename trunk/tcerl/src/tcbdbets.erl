@@ -318,10 +318,11 @@ init_table (TcBdbEts, InitFun) ->
 %%    to return Data as returned by bchunk/2. 
 %% @end
 
-init_table (_TcBdbEts = #tcbdbets{ access = read }, InitFun, _Options) ->
+init_table (_TcBdbEts = #tcbdbets{ access = read }, InitFun, _Options) when is_function (InitFun, 1) ->
   catch InitFun (close),
   { error, read_only };
-init_table (TcBdbEts, InitFun, Options) ->
+init_table (TcBdbEts, InitFun, Options) when is_function (InitFun, 1),
+                                             is_list (Options) ->
   delete_all_objects (TcBdbEts),
   case lists:keysearch (format, 1, Options) of
     { value, { format, term } } ->
