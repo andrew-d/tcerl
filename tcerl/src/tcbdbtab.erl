@@ -50,28 +50,33 @@
 
 -include_lib ("mnesia/src/mnesia.hrl").
 
+% { Tab, Name } is a checkpoint retainer
+-define (is_tabid (X), (is_atom (X) orelse 
+                        (is_tuple (X) andalso
+                         is_atom (element (1, X))))).
+
 %-=====================================================================-
 %-                                Public                               -
 %-=====================================================================-
 
 %% @hidden
 
-info (Tab, What) when is_atom (Tab) ->
+info (Tab, What) when ?is_tabid (Tab) ->
   tcbdbets:info (get_port (Tab), What).
 
 %% @hidden
 
-lookup (Tab, Key) when is_atom (Tab) ->
+lookup (Tab, Key) when ?is_tabid (Tab) ->
   tcbdbets:lookup (get_port (Tab), Key).
 
 %% @hidden
 
-insert (Tab, Objects) when is_atom (Tab) ->
+insert (Tab, Objects) when ?is_tabid (Tab) ->
   tcbdbets:insert (get_port (Tab), Objects).
 
 %% @hidden
 
-match_object (Tab, Pattern) when is_atom (Tab) ->
+match_object (Tab, Pattern) when ?is_tabid (Tab) ->
   tcbdbets:match_object (get_port (Tab), Pattern).
 
 %% @hidden
@@ -81,78 +86,70 @@ select (Cont) ->
 
 %% @hidden
 
-select (Tab, MatchSpec) when is_atom (Tab) ->
+select (Tab, MatchSpec) when ?is_tabid (Tab) ->
   tcbdbets:select (get_port (Tab), MatchSpec).
 
 %% @hidden
 
-select (Tab, MatchSpec, Count) when is_atom (Tab) ->
+select (Tab, MatchSpec, Count) when ?is_tabid (Tab) ->
   tcbdbets:select (get_port (Tab), MatchSpec, Count).
 
 %% @hidden
 
-delete (Tab, Key) when is_atom (Tab) ->
+delete (Tab, Key) when ?is_tabid (Tab) ->
   tcbdbets:delete (get_port (Tab), Key).
 
 %% @hidden
 
-match_delete (Tab, Pattern) when is_atom (Tab) ->
+match_delete (Tab, Pattern) when ?is_tabid (Tab) ->
   tcbdbets:match_delete (get_port (Tab), Pattern).
 
 %% @hidden
 
-first (Tab) when is_atom (Tab) ->
+first (Tab) when ?is_tabid (Tab) ->
   tcbdbets:first (get_port (Tab)).
 
 %% @hidden
 
-next (Tab, Key) when is_atom (Tab) ->
+next (Tab, Key) when ?is_tabid (Tab) ->
   tcbdbets:next (get_port (Tab), Key).
 
 %% @hidden
 
-last (Tab) when is_atom (Tab) ->
+last (Tab) when ?is_tabid (Tab) ->
   tcbdbets:last (get_port (Tab)).
 
 %% @hidden
 
-prev (Tab, Key) when is_atom (Tab) ->
+prev (Tab, Key) when ?is_tabid (Tab) ->
   tcbdbets:prev (get_port (Tab), Key).
 
 %% @hidden
 
 % ??? 
-slot (Tab, _N) when is_atom (Tab) ->
+slot (Tab, _N) when ?is_tabid (Tab) ->
   { error, slot_not_supported }.
 
 %% @hidden
 
-update_counter (Tab, Key, Incr) when is_atom (Tab) ->
+update_counter (Tab, Key, Incr) when ?is_tabid (Tab) ->
   tcbdbets:update_counter (get_port (Tab), Key, Incr).
 
 %% @hidden
 
 create_table (Tab, Cs) when is_atom (Tab) ->
-  Dir = mnesia_lib:val (dir),
-  { _, Type, _ } = Cs#cstruct.type,
-  UserProps = [ case X of { Foo, true } when Foo =:= uncompressed orelse
-                                             Foo =:= deflate orelse
-                                             Foo =:= tcbs -> Foo;
-                          _ -> X
-                end || X <- Cs#cstruct.user_properties ],
-  File = filename:join ([ Dir, atom_to_list (Tab) ++ ".tcb" ]),
-  { ok, Port } = tcbdbets:open_file ([ { access, read_write },
-                                       { file, File },
-                                       { keypos, 2 },
-                                       { type, Type } ] 
-                                     ++ UserProps),
-  tcbdbets:unlink (Port),
-  mnesia_lib:set ({ Tab, tcbdb_port }, Port),
-  Tab.
+  create_table (Tab, Cs, atom_to_list (Tab) ++ ".tcb");
+create_table (T = { Tab, Name }, Cs) when is_atom (Tab) -> % checkpoint retainer
+  create_table (T,
+                Cs, 
+                atom_to_list (Tab) 
+                ++ "_" 
+                ++ lists:flatten (io_lib:write (Name))
+                ++ ".tcbret").
 
 %% @hidden
 
-delete_table (Tab) when is_atom (Tab) ->
+delete_table (Tab) when ?is_tabid (Tab) ->
   Port = get_port (Tab),
   FileName = tcbdbets:info (Port, filename),
   tcbdbets:close (Port),
@@ -162,32 +159,50 @@ delete_table (Tab) when is_atom (Tab) ->
 
 %% @hidden
 
-init_index (Tab, _Pos) when is_atom (Tab) ->
+init_index (Tab, _Pos) when ?is_tabid (Tab) ->
   ok.
 
 %% @hidden
 
-add_index (Tab, _Pos) when is_atom (Tab) ->
+add_index (Tab, _Pos) when ?is_tabid (Tab) ->
   ok.
 
 %% @hidden
 
-delete_index (Tab, _Pos) when is_atom (Tab) ->
+delete_index (Tab, _Pos) when ?is_tabid (Tab) ->
   ok.
 
 %% @hidden
 
-fixtable (Tab, _Bool) when is_atom (Tab) ->
+fixtable (Tab, _Bool) when ?is_tabid (Tab) ->
   true.
 
 %% @hidden
 
-init_table (Tab, InitFun, _Sender) when is_atom (Tab) ->
+init_table (Tab, InitFun, _Sender) when ?is_tabid (Tab) ->
   tcbdbets:init_table (get_port (Tab), InitFun).
 
 %-=====================================================================-
 %-                               Private                               -
 %-=====================================================================-
+
+create_table (Tab, Cs, FileName) ->
+  Dir = mnesia_lib:val (dir),
+  { _, Type, _ } = Cs#cstruct.type,
+  UserProps = [ case X of { Foo, true } when Foo =:= uncompressed orelse
+                                             Foo =:= deflate orelse
+                                             Foo =:= tcbs -> Foo;
+                          _ -> X
+                end || X <- Cs#cstruct.user_properties ],
+  File = filename:join ([ Dir, FileName ]),
+  { ok, Port } = tcbdbets:open_file ([ { access, read_write },
+                                       { file, File },
+                                       { keypos, 2 },
+                                       { type, Type } ] 
+                                     ++ UserProps),
+  tcbdbets:unlink (Port),
+  mnesia_lib:set ({ Tab, tcbdb_port }, Port),
+  Tab.
 
 get_port (Tab) ->
   try mnesia_lib:val ({ Tab, tcbdb_port }) 
