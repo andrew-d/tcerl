@@ -50,4 +50,4 @@ Both pieces use automake to build.[[#1 1]]
 
 == 1 ==
 
-To build from a source code checkout of the repository requires [http://code.google.com/p/fwtemplates framewerk]; however the downloadable source tarballs should be "ordinary automake" and not require anything extra (except actual dependencies, such as tokyocabinet).
+More precisely, downloadable source tarballs use automake to build. A source code checkout of the repository uses [http://code.google.com/p/fwtemplates framewerk] to build, and if you don't know what that is, you probably want to stick with the tarballs.
