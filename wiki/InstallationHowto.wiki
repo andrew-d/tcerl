@@ -44,7 +44,7 @@ Both pieces use automake to build.[[#1 1]]
 
   * Ubuntu i386 gusty
   * OS/X 10.4 with fink
-    * you might have to tweak your include and linker flags to build tcerldrv if you put erlang somewhere i haven't anticipated.  let me know what you had to do and i'll add it to configure.ac.local for the next release.
+    * you might have to tweak your include and linker flags to build tcerldrv if you put erlang somewhere i haven't anticipated (e.g., if you are not using fink).  let me know what you had to do and i'll add it to configure.ac.local for the next release.
 
 = Footnotes =
 
