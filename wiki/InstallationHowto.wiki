@@ -48,4 +48,4 @@ Both pieces use automake to build.[[#1 1]]
 
 == 1 ==
 
-They are actually built from source using [http://code.google.com/p/fwtemplates framewerk]; tcerldrv is an [http://code.google.com/p/fwtemplates/wiki/FwTemplateCWalkthrough fw-template-c] project and tcerl is an [http://code.google.com/p/fwtemplates/wiki/FwTemplateErlangWalkthrough fw-template-erlang] project.  However dist tarballs are supposed to be indistinguishable from other automake dist tarballs, so you can ignore this.
+To build from a source code checkout of the repository requires [http://code.google.com/p/fwtemplates framewerk]; however the download tarballs should be "ordinary automake" and not require anything extra (except actual dependencies, such as tokyocabinet).
