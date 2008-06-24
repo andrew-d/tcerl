@@ -20,8 +20,8 @@ Both pieces use automake to build.[[#1 1]]
         * Ubuntu (hardy): aptitude install libtokyocabinet-dev
         * others: Download and build the [http://downloads.sourceforge.net/tokyocabinet/tokyocabinet-1.2.5.tar.gz?modtime=1209093521&big_mirror=0 source]
 
-  * You need erl_driver.h.
-        * Ubuntu/Debian: aptitude install erlang-dev
+  * You need erl_driver.h, erl_marshal.h, and erl_interface.h.
+        * Ubuntu/Debian: aptitude install erlang-dev erlang-src
         * OS/X (fink): apt-get install erlang-otp
         * freebsd: [http://www.freshports.org/lang/erlang install the port]
         * others: please let me know so i can update here
