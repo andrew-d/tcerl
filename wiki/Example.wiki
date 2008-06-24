@@ -1,4 +1,5 @@
 #summary Hello world using tcerl.
+#labels Featured
 
 = Prerequisities =
 
