@@ -1,0 +1,38 @@
+#summary Hello world using tcerl.
+
+= Prerequisities =
+
+  * [http://code.google.com/p/mnesiaex/wiki/InstallationHowto mnesiaex] installed
+  * [http://code.google.com/p/tcerl/wiki/InstallationHowto tcerl] installed
+
+= Example =
+
+{{{
+% erl
+Erlang (BEAM) emulator version 5.5.5 [source] [async-threads:0] [hipe] [kernel-poll:false]
+
+Eshell V5.5.5  (abort with ^G)
+1> tcerl:start ().
+ok
+2> mnesia:start ().
+ok
+3> mnesia:change_table_copy_type (schema, node (), disc_copies).
+{atomic,ok}
+4> mnesia:create_table (testtab, [ { type, { external, ordered_set, tcbdbtab } }, { external_copies, [ node () ] }, { user_properties, [ { deflate, true }, { bucket_array_size, 10000 } ] } ]).
+{atomic,ok}
+5> mnesia:table_info (testtab, type).
+ordered_set
+6> mnesia:dirty_write ({ testtab, hello, world }), mnesia:dirty_read (testtab, hello).
+[{testtab,hello,world}]
+7> f (), Start = now (), [ mnesia:dirty_write ({ testtab, N, N }) || N <- lists:seq (1, 100000) ], End = now (), timer:now_diff (End, Start).
+5590639
+8>              
+User switch command
+ --> q
+% ls -l Mnesia.nonode@nohost
+total 516
+-rw-r--r-- 1 pmineiro pmineiro    156 Jun 23 19:40 DECISION_TAB.LOG
+-rw-r--r-- 1 pmineiro pmineiro  82246 Jun 23 19:40 LATEST.LOG
+-rw-r--r-- 1 pmineiro pmineiro   9339 Jun 23 19:39 schema.DAT
+-rw-r--r-- 1 pmineiro pmineiro 414464 Jun 23 19:40 testtab.tcb
+}}}
