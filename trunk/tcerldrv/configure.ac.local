@@ -5,14 +5,17 @@ ERL_CRASH_DUMP=/dev/null
 EIBASE="`erl -noshell -noinput -eval 'io:format (\"~s\", [[ code:lib_dir (erl_interface) ]])' -s erlang halt`"
 AC_SUBST([EIBASE])
 
-CPPFLAGS="$CPPFLAGS -I ${EIBASE}/include -I ${EIBASE}/src/legacy -I ${EIBASE}/src/misc/"
+ERTSBASE="`erl -noshell -noinput -eval 'io:format (\"~s\", [[ \"/\" ++ filename:join (lists:reverse ([ \"erts-\" ++ erlang:system_info (version) | tl (lists:reverse (string:tokens (code:lib_dir (), \"/\"))) ])) ]]).' -s erlang halt `"
+AC_SUBST([ERTSBASE])
+
+CPPFLAGS="$CPPFLAGS -I ${EIBASE}/include -I ${EIBASE}/src/legacy -I ${EIBASE}/src/misc/ -I ${ERTSBASE}/include"
 
 AC_CHECK_HEADER([erl_marshal.h], 
                 [], 
                 [AC_MSG_ERROR([can't find erl_marshal.h; under debian you need to install erlang-src])], 
                 [#include <erl_interface.h>])
 
-LDFLAGS="$LDFLAGS -L${EIBASE}/lib"
+LDFLAGS="$LDFLAGS -L${EIBASE}/lib -L${ERTSBASE}/lib"
 AC_CHECK_LIB([ei],
              [ei_set_compat_rel],
              [],
@@ -38,14 +41,6 @@ test "$FW_NATIVE_PACKAGE_TYPE" != "none" || {
 }
 AC_SUBST([TOKYOCABINET_CFLAGS])
 AC_SUBST([TOKYOCABINET_LIBS])
-
-test -d "/sw/lib/erlang/usr/include/" && {
-  CPPFLAGS="$CPPFLAGS -I/sw/lib/erlang/usr/include/"
-}
-
-test -d "/usr/local/lib/erlang/usr/include/" && {
-  CPPFLAGS="$CPPFLAGS -I/usr/local/lib/erlang/usr/include/"
-}
 
 AC_CHECK_HEADERS([erl_driver.h], ,
                  [AC_MSG_ERROR([ need erl_driver.h to proceed ])])
