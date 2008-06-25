@@ -3,7 +3,6 @@
 
 #include <stdbool.h>
 
-typedef enum _RequestType RequestType;
 typedef struct _TcDriverData TcDriverData;
 typedef struct _FromEmulator FromEmulator;
 typedef void (*handler) (TcDriverData*, FromEmulator);
@@ -30,6 +29,7 @@ enum _RequestType
 
   EMULATOR_REQUEST_INVALID = 255
 };
+typedef enum _RequestType RequestType;
 
 static bool
 is_request_type (unsigned char type)
