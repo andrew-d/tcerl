@@ -19,5 +19,5 @@ libtcbdberl_la_LDFLAGS = 	\
 # ok, this is cheating, but ... 
 # i'm too lazy to fix all the signedness problems in this code
 my_erl_marshal.lo: my_erl_marshal.c
-	$(LTCOMPILE) -Wno-pointer-sign -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+	$(LTCOMPILE) -Wno-error -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
 	mv -f $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Plo
