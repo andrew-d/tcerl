@@ -1,6 +1,11 @@
 #ifndef __TC_ERL_CODEC_H_
 #define __TC_ERL_CODEC_H_
 
+#ifdef __cplusplus
+extern "C"
+    {
+#endif
+
 #define DECODE_BINARY(xlen, x)                  \
   do                                            \
     {                                           \
@@ -80,5 +85,9 @@
       (x) |= (_extra & 4) ? BDBTTCBS : 0;               \
     }                                                   \
   while (0)
+
+#ifdef __cplusplus
+    }
+#endif
 
 #endif /* __TC_ERL_CODEC_H_ */

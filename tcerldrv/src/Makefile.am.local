@@ -7,7 +7,8 @@ lib_LTLIBRARIES =		\
 
 libtcbdberl_la_SOURCES = 	\
   my_erl_marshal.c		\
-  tcbdberl.c
+  tcbdberl.c			\
+  tcbdbupdatecounter.c
 
 libtcbdberl_la_LIBADD = 	\
   @FW_PKGCONFIG_PREREQS_LIBS@	\
