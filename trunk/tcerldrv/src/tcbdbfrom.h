@@ -4,6 +4,11 @@
 #include "tcbdbcodec.h"
 #include "tcbdbtypes.h"
 
+#ifdef __cplusplus
+extern "C"
+    {
+#endif
+
 struct _FromEmulator 
 {
   RequestType                                   type;
@@ -252,5 +257,9 @@ ERROR:
 
   return from;
 }
+
+#ifdef __cplusplus
+    }
+#endif
 
 #endif /* __TC_ERL_FROM_H_ */

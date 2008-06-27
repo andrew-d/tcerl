@@ -3,6 +3,11 @@
 
 #include <erl_driver.h>
 
+#ifdef __cplusplus
+extern "C"
+    {
+#endif
+
 static void
 reply_binary (ErlDrvPort        port,
               ErlDrvBinary*     bin,
@@ -720,5 +725,9 @@ init_handlers (handler handlers[1 + EMULATOR_REQUEST_BDB_PREV])
   handlers[EMULATOR_REQUEST_BDB_INFO] = bdb_info;
   handlers[EMULATOR_REQUEST_BDB_SYNC] = bdb_sync;
 }
+
+#ifdef __cplusplus
+    }
+#endif
 
 #endif /* __TC_ERL_HANDLER_H_ */

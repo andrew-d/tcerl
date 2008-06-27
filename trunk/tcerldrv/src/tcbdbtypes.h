@@ -3,6 +3,11 @@
 
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C"
+    {
+#endif
+
 typedef struct _TcDriverData TcDriverData;
 typedef struct _FromEmulator FromEmulator;
 typedef void (*handler) (TcDriverData*, FromEmulator);
@@ -45,5 +50,9 @@ struct _TcDriverData
   handler       handlers[1 + EMULATOR_REQUEST_BDB_SYNC];
   unsigned int  open : 1;
 };
+
+#ifdef __cplusplus
+    }
+#endif
 
 #endif /* __TC_ERL_TYPES_H_ */
