@@ -1306,15 +1306,19 @@ set_defaults (Options) ->
              _ -> []
            end,
 
-  lists:reverse ([ reader, 
-                   { leaf_node_cache, -1 },
-                   { nonleaf_node_cache, -1 },
-                   { leaf_members, -1 },
-                   { non_leaf_members, - 1 },
-                   { bucket_array_size, -1 },
-                   { record_alignment, -1 },
-                   { free_block_pool, -1 } ] ++ 
-                   Type ++ Keypos ++ Access ++ Compression ++ Options).
+  Options ++
+  Compression ++
+  Access ++
+  Keypos ++
+  Type ++
+  [ reader, 
+    { leaf_node_cache, -1 },
+    { nonleaf_node_cache, -1 },
+    { leaf_members, -1 },
+    { non_leaf_members, - 1 },
+    { bucket_array_size, -1 },
+    { record_alignment, -1 },
+    { free_block_pool, -1 } ].
 
 % traverse
 
