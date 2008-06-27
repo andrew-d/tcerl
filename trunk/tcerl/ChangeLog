@@ -1,3 +1,6 @@
+Version 1.2.5b [ NYR ]
+  * "default sandwich" fix
+
 Version 1.2.5a 
   * added mnesia storage api support
 
