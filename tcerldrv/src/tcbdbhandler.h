@@ -731,14 +731,20 @@ bdb_update_counter (TcDriverData* d,
                                     &dest_len,
                                     from.bdb_update_counter.pos,
                                     from.bdb_update_counter.incr,
-                                    &result) &&
-              tcbdbput (d->bdb,
-                        from.bdb_get.kbuf,
-                        from.bdb_get.ksiz,
-                        dest,
-                        dest_len))
+                                    &result))
             {
-              reply_binary_singleton (d->port, &result, 4);
+              if (tcbdbput (d->bdb,
+                            from.bdb_update_counter.kbuf,
+                            from.bdb_update_counter.ksiz,
+                            dest,
+                            dest_len))
+                {
+                  reply_binary_singleton (d->port, &result, 4);
+                }
+              else
+                {
+                  reply_error (d->port, d->bdb);
+                }
             }
           else
             {
@@ -757,7 +763,7 @@ bdb_update_counter (TcDriverData* d,
 }
 
 static void
-init_handlers (handler handlers[1 + EMULATOR_REQUEST_BDB_PREV])
+init_handlers (handler* handlers)
 {
   handlers[EMULATOR_REQUEST_BDB_TUNE] = bdb_tune;
   handlers[EMULATOR_REQUEST_BDB_OPEN] = bdb_open;

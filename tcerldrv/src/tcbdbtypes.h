@@ -40,7 +40,7 @@ typedef enum _RequestType RequestType;
 static bool
 is_request_type (unsigned char type)
 {
-  return type <= EMULATOR_REQUEST_BDB_SYNC;
+  return type <= EMULATOR_REQUEST_BDB_UPDATE_COUNTER;
 }
 
 struct _TcDriverData 

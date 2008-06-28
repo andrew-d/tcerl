@@ -1,10 +1,8 @@
 #include "tcbdbupdatecounter.h"
+#include "my_decode_skip.h"
 
 #include <stdint.h>
 #include <string.h>
-
-#include <erl_interface.h>
-#include <ei.h>
 
 #define ERL_MAGIC 131
 
@@ -177,7 +175,7 @@ copy_element    (const unsigned char**  source,
 {
   int source_index = 0;
 
-  if (ei_skip_term ((const char *) *source, &source_index) < 0)
+  if (my_ei_skip_term ((const char *) *source, &source_index) < 0)
     {
       return 0;
     }
@@ -233,15 +231,15 @@ large_integer   (const unsigned char*   source)
 
   val = source[0] & 0x7F;
   val <<= 8;
-  val |= source[1];
+  val += source[1];
   val <<= 8;
-  val |= source[2];
+  val += source[2];
   val <<= 8;
-  val |= source[3];
+  val += source[3];
 
   if (source[0] & 0x80)
     {
-      val *= -1;
+      val -= 1 << 31;
     }
 
   return val;
@@ -254,11 +252,11 @@ unsigned_large_integer   (const unsigned char*   source)
 
   val = source[0];
   val <<= 8;
-  val |= source[1];
+  val += source[1];
   val <<= 8;
-  val |= source[2];
+  val += source[2];
   val <<= 8;
-  val |= source[3];
+  val += source[3];
 
   return val;
 }
@@ -281,11 +279,12 @@ output_integer (int32_t         val,
       *(*dest)++ = LARGE_INT;
       ++(*dest_len);
 
-      *dest[3] = (val & 0xFF000000) >> 24;
-      *dest[2] = (val & 0x00FF0000) >> 16;
-      *dest[1] = (val & 0x0000FF00) >> 8;
-      *dest[0] = (val & 0x000000FF);
+      (*dest)[0] = (val & 0xFF000000) >> 24;
+      (*dest)[1] = (val & 0x00FF0000) >> 16;
+      (*dest)[2] = (val & 0x0000FF00) >> 8;
+      (*dest)[3] = (val & 0x000000FF);
 
+      *dest += 4;
       *dest_len += 4;
     }
 }
@@ -355,7 +354,7 @@ update_tuple   (uint32_t                  elems,
       return 0;
     }
 
-  for (i = pos; i < elems; ++i)
+  for (i = pos + 1; i <= elems; ++i)
     {
       if (! copy_element (&source, &source_len, &dest, dest_len))
         {
