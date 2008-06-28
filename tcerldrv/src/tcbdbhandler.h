@@ -2,6 +2,7 @@
 #define __TC_ERL_HANDLER_H_
 
 #include <erl_driver.h>
+#include <tcbdbupdatecounter.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -705,6 +706,51 @@ bdb_sync         (TcDriverData* d,
 }
 
 static void
+bdb_update_counter (TcDriverData* d,
+                    FromEmulator  from)
+{
+  if (d->open)
+    {
+      const void *vbuf;
+      int vsiz;
+
+      vbuf = tcbdbget3 (d->bdb,
+                        from.bdb_get.kbuf,
+                        from.bdb_get.ksiz,
+                        &vsiz);
+
+      if (vbuf != NULL)
+        {
+          unsigned char dest[vsiz + 3];
+          int32_t result;
+
+          if (tcbdb_update_counter (vbuf,
+                                    vsiz,
+                                    dest,
+                                    vsiz + 3, 
+                                    from.bdb_update_counter.pos,
+                                    from.bdb_update_counter.incr,
+                                    &result))
+            {
+              reply_string (d->port, "invalid update");
+            }
+          else
+            {
+              reply_binary_singleton (d->port, &result, 4);
+            }
+        }
+      else /* vbuf == NULL */
+        {
+          reply_empty_list (d->port);
+        }
+    }
+  else
+    {
+      reply_string (d->port, "not open");
+    }
+}
+
+static void
 init_handlers (handler handlers[1 + EMULATOR_REQUEST_BDB_PREV])
 {
   handlers[EMULATOR_REQUEST_BDB_TUNE] = bdb_tune;
@@ -724,6 +770,7 @@ init_handlers (handler handlers[1 + EMULATOR_REQUEST_BDB_PREV])
   handlers[EMULATOR_REQUEST_BDB_OUT_EXACT] = bdb_out_exact;
   handlers[EMULATOR_REQUEST_BDB_INFO] = bdb_info;
   handlers[EMULATOR_REQUEST_BDB_SYNC] = bdb_sync;
+  handlers[EMULATOR_REQUEST_BDB_UPDATE_COUNTER] = bdb_update_counter;
 }
 
 #ifdef __cplusplus

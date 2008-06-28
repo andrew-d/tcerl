@@ -96,6 +96,7 @@ tcbdb_output           (ErlDrvData     handle,
       case EMULATOR_REQUEST_BDB_OUT_EXACT:
       case EMULATOR_REQUEST_BDB_INFO:
       case EMULATOR_REQUEST_BDB_SYNC:
+      case EMULATOR_REQUEST_BDB_UPDATE_COUNTER:
         d->handlers[from_emulator.type] (d, from_emulator);
 
         break;

@@ -124,6 +124,13 @@ struct _FromEmulator
         {
         }                       bdb_sync;
 
+      struct
+        {
+          const void*   kbuf;
+          int           ksiz;
+          uint32_t      pos;
+          int32_t       incr;
+        }                       bdb_update_counter;
     };
 };
 
@@ -237,6 +244,14 @@ decode_from (char*              buf,
             break;
 
           case EMULATOR_REQUEST_BDB_SYNC:
+
+            break;
+
+          case EMULATOR_REQUEST_BDB_UPDATE_COUNTER:
+            DECODE_BINARY (from.bdb_update_counter.ksiz,
+                           from.bdb_update_counter.kbuf);
+            DECODE_NATIVE_64_UNSIGNED (from.bdb_update_counter.pos);
+            DECODE_NATIVE_64_SIGNED (from.bdb_update_counter.incr);
 
             break;
 

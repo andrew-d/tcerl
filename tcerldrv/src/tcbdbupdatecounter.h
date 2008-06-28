@@ -14,7 +14,8 @@ tcbdb_update_counter (const unsigned char*      source,
                       unsigned char*            dest,
                       int                       dest_len,
                       uint32_t                  pos,
-                      int32_t                   incr);
+                      int32_t                   incr,
+                      int32_t*                  result);
 
 #ifdef __cplusplus
     }
