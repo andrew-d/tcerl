@@ -1,5 +1,5 @@
 Version 1.2.5b [ NOT YET RELEASED ]
-  * Atomic update_counter.
+  * Atomic update_counter support.
 
 Version 1.2.5a
   * Some OS/X build fixes.

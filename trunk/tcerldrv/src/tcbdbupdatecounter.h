@@ -12,7 +12,7 @@ int
 tcbdb_update_counter (const unsigned char*      source,
                       int                       source_len,
                       unsigned char*            dest,
-                      int                       dest_len,
+                      int*                      dest_len,
                       uint32_t                  pos,
                       int32_t                   incr,
                       int32_t*                  result);
