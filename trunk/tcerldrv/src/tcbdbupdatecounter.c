@@ -1,6 +1,5 @@
 #include "tcbdbupdatecounter.h"
 
-#include <arpa/inet.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -65,7 +64,7 @@ small_integer   (const unsigned char*   source);
 static int32_t
 large_integer   (const unsigned char*   source);
 
-static int32_t
+static uint32_t
 unsigned_large_integer (const unsigned char*   source);
 
 static void
@@ -80,7 +79,8 @@ update_tuple   (uint32_t                  elems,
                 unsigned char*            dest,
                 int                       dest_len,
                 uint32_t                  pos,
-                int32_t                   incr);
+                int32_t                   incr,
+                int32_t*                  result);
 
 /*=====================================================================*
  *                                Public                               *
@@ -92,7 +92,8 @@ tcbdb_update_counter (const unsigned char*      source,
                       unsigned char*            dest,
                       int                       dest_len,
                       uint32_t                  pos,
-                      int32_t                   incr)
+                      int32_t                   incr,
+                      int32_t*                  result)
 {
   if (   source_len < 1
       || dest_len < source_len
@@ -129,7 +130,8 @@ tcbdb_update_counter (const unsigned char*      source,
                            dest,
                            dest_len,
                            pos,
-                           incr);
+                           incr,
+                           result);
     }
   else if (is_large_tuple (source, source_len))
     {
@@ -153,7 +155,8 @@ tcbdb_update_counter (const unsigned char*      source,
                            dest,
                            dest_len,
                            pos,
-                           incr);
+                           incr,
+                           result);
     }
   else
     {
@@ -244,10 +247,20 @@ large_integer   (const unsigned char*   source)
   return val;
 }
 
-static int32_t
+static uint32_t
 unsigned_large_integer   (const unsigned char*   source)
 {
-  return ntohl (* (uint32_t *) source);
+  uint32_t val;
+
+  val = source[0];
+  val <<= 8;
+  val |= source[1];
+  val <<= 8;
+  val |= source[2];
+  val <<= 8;
+  val |= source[3];
+
+  return val;
 }
 
 static void
@@ -268,9 +281,11 @@ output_integer (int32_t         val,
       *(*dest)++ = LARGE_INT;
       --(*dest_len);
 
-      val = htonl (val);
+      *dest[3] = (val & 0xFF000000) >> 24;
+      *dest[2] = (val & 0x00FF0000) >> 16;
+      *dest[1] = (val & 0x0000FF00) >> 8;
+      *dest[0] = (val & 0x000000FF);
 
-      memcpy (*dest, &val, 4);
       (*dest_len) -= 4;
     }
 }
@@ -282,7 +297,8 @@ update_tuple   (uint32_t                  elems,
                 unsigned char*            dest,
                 int                       dest_len,
                 uint32_t                  pos,
-                int32_t                   incr)
+                int32_t                   incr,
+                int32_t*                  result)
 {
   uint32_t i;
 
@@ -312,6 +328,8 @@ update_tuple   (uint32_t                  elems,
       val += incr;
 
       output_integer (val, &dest, &dest_len);
+
+      *result = val;
     }
   else if (is_large_integer (source, source_len))
     {
@@ -326,6 +344,8 @@ update_tuple   (uint32_t                  elems,
       val += incr;
 
       output_integer (val, &dest, &dest_len);
+
+      *result = val;
     }
   else
     {

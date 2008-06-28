@@ -31,6 +31,7 @@ enum _RequestType
   EMULATOR_REQUEST_BDB_OUT_EXACT = 14,
   EMULATOR_REQUEST_BDB_INFO = 15,
   EMULATOR_REQUEST_BDB_SYNC = 16,
+  EMULATOR_REQUEST_BDB_UPDATE_COUNTER = 17,
 
   EMULATOR_REQUEST_INVALID = 255
 };
@@ -47,7 +48,7 @@ struct _TcDriverData
   ErlDrvPort    port;
   TCBDB*        bdb;
   BDBCUR*       cur;
-  handler       handlers[1 + EMULATOR_REQUEST_BDB_SYNC];
+  handler       handlers[1 + EMULATOR_REQUEST_BDB_UPDATE_COUNTER];
   unsigned int  open : 1;
 };
 
