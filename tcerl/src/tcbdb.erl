@@ -22,6 +22,7 @@
            range_ub/4,
            sync/1,
            unlink/1,
+           update_counter/4,
            vanish/1
          ]).
 
@@ -46,6 +47,7 @@
 -define (BDB_OUT_EXACT, 14).
 -define (BDB_INFO, 15).
 -define (BDB_SYNC, 16).
+-define (BDB_UPDATE_COUNTER, 17).
 
 % well, not perfect, but iodata is a recursively defined datastructure
 % so can't be captured by a guard
@@ -59,7 +61,7 @@
 %% @doc Close a tcerl database.  Corresponds to tcbdbclose ().
 %% @end
 
-close ({ tcerl, Port }) ->
+close ({ tcerl, Port }) when is_port (Port) ->
   true = port_command (Port, <<?BDB_CLOSE:8>>),
   receive
     { Port, { data, <<"ok">> } } -> 
@@ -469,18 +471,48 @@ range_ub ({ tcerl, Port }, End, EndInc, Max) when is_port (Port),
 %% and the device.  Corresponds to tcbdbsync ().
 %% @end
 
-sync ({ tcerl, Port }) ->
+sync ({ tcerl, Port }) when is_port (Port) ->
   true = port_command (Port, <<?BDB_SYNC:8>>),
   receive
     { Port, { data, <<"ok">> } } -> ok;
     { Port, { data, Other } } -> { error, Other }
   end.
 
+%% @spec update_counter (Tcerl::tcerl (), Key::iodata (), Pos::integer (), Incr::integer ()) -> Result::integer () 
+%% @doc Update a counter associated with a tuple record whose Pos-th 
+%% position consists of an integer field.  The new counter value
+%% is returned.
+%% 
+%% For compatibility with ets/dets, this method will 
+%% exit (throw an exception) if certain conditions are violated:
+%% <ol>
+%%   <li>An object exists associated with the key.</li>
+%%   <li>The value is a tuple with an integer at the Pos-th position.</li>
+%% </ol>
+%% @end
+
+update_counter ({ tcerl, Port }, Key, Pos, Incr) when is_port (Port),
+                                                      ?is_iodata (Key),
+                                                      is_integer (Pos),
+                                                      is_integer (Incr) ->
+  KeySize = erlang:iolist_size (Key),
+  true = port_command (Port, [ <<?BDB_UPDATE_COUNTER:8>>,
+                               <<KeySize:64/native-unsigned>>,
+                               Key,
+                               <<Pos:64/native-unsigned>>,
+                               <<Incr:64/native-signed>> ]),
+
+  receive
+    { Port, { data, [ <<Result:32/native-signed>> ] } } -> Result;
+    { Port, { data, [] } } -> exit (badarg);
+    { Port, { data, Other } } -> exit (Other)
+  end.
+
 %% @spec unlink (Tcerl::tcerl ()) -> true
 %% @doc Unlinks the port underlying the table from the current process.
 %% @end
 
-unlink ({ tcerl, Port }) ->
+unlink ({ tcerl, Port }) when is_port (Port) ->
   erlang:unlink (Port).
 
 %% @spec vanish (Tcerl::tcerl ()) -> ok | { error, Reason }

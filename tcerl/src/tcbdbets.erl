@@ -2,9 +2,7 @@
 %% ordered_duplicate_bag semantics.
 %% @end
 
-% TODO: mnesia wants to refer to tables via atoms
 % TODO: ordered_bag (requires driver help)
-% TODO: atomic update counter (requires driver help?)
 % more TODOs sprinkled inline
 
 -module (tcbdbets).
@@ -877,9 +875,13 @@ traverse (TcBdbEts = #tcbdbets{}, Function) when is_function (Function, 1) ->
 %% TcBdbEts must be of type ordered_set, the key must exist,
 %% and the position being updated cannot be the key position.
 %% Errors are indicated via exceptions with this routine.
+%%
+%% Another caveat: bignums currently cannot be used as counter
+%% fields, and if there is underflow or overflow the value will be 
+%% silently incorrect.
+%%
+%% Exits (throws an exception) if preconditions are violated.
 %% @end
-
-% TODO: don't actually do a read-modify-write
 
 update_counter (_TcBdbEts = #tcbdbets{ access = read }, _Key, _Increment) ->
   { error, read_only };
@@ -892,10 +894,8 @@ update_counter (TcBdbEts = #tcbdbets{ keypos = KeyPos, type = ordered_set },
                 { Pos, Incr }) when is_integer (Pos),
                                     is_integer (Incr),
                                     Pos =/= KeyPos ->
-  [ Value ] = lookup (TcBdbEts, Key),
-  NewCount = element (Pos, Value) + Incr,
-  ok = insert (TcBdbEts, setelement (Pos, Value, NewCount)),
-  NewCount.
+  KeyBin = erlang:term_to_binary (Key, [ { minor_version, 1 } ]),
+  tcbdb:update_counter (TcBdbEts#tcbdbets.tcerl, KeyBin, Pos, Incr).
 
 %-=====================================================================-
 %-                               Private                               -
@@ -2317,8 +2317,17 @@ update_counter_test_ () ->
     T = 
       ?FORALL (X,
                fun (_) -> { random_term (), 
-                            random_integer (),
-                            random_integer (),
+                            case random:uniform (5) of
+                              1 -> -1;
+                              2 -> 255;
+                              3 -> random_integer ();
+                              4 -> -1 * random_integer ();
+                              5 -> 0
+                            end,
+                            case random:uniform (2) of
+                              1 -> random_integer ();
+                              2 -> -1 * random_integer ()
+                            end,
                             random_term () } end,
                (fun ({ Key, Count, Incr, Value }) ->
                   ok = tcbdbets:insert (R, { Key, Count, Value }),
@@ -2326,9 +2335,14 @@ update_counter_test_ () ->
 
                   TcbdbUp = tcbdbets:update_counter (R, Key, Incr),
                   EtsUp = ets:update_counter (Tab, Key, Incr),
-
                   TcbdbUp = EtsUp,
 
+                  true = (tcbdbets:lookup (R, Key) =:= ets:lookup (Tab, Key)),
+
+                  TcbdbUpDeux = tcbdbets:update_counter (R, Key, Incr),
+                  EtsUpDeux = ets:update_counter (Tab, Key, Incr),
+
+                  TcbdbUpDeux = EtsUpDeux,
                   true
                 end) (X)),
 
