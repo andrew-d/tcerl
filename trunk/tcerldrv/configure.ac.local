@@ -8,7 +8,7 @@ AC_SUBST([EIBASE])
 ERTSBASE="`erl -noshell -noinput -eval 'io:format (\"~s\", [[ \"/\" ++ filename:join (lists:reverse ([ \"erts-\" ++ erlang:system_info (version) | tl (lists:reverse (string:tokens (code:lib_dir (), \"/\"))) ])) ]]).' -s erlang halt `"
 AC_SUBST([ERTSBASE])
 
-CPPFLAGS="$CPPFLAGS -I ${EIBASE}/include -I ${EIBASE}/src/legacy -I ${EIBASE}/src/misc/ -I ${ERTSBASE}/include"
+CPPFLAGS="$CPPFLAGS -I ${EIBASE}/include -I ${EIBASE}/src/legacy -I ${EIBASE}/src/misc/ -I ${EIBASE}/src/decode -I ${ERTSBASE}/include"
 
 AC_CHECK_HEADER([erl_marshal.h], 
                 [], 

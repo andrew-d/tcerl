@@ -6,6 +6,7 @@ lib_LTLIBRARIES =		\
   libtcbdberl.la
 
 libtcbdberl_la_SOURCES = 	\
+  my_decode_skip.c		\
   my_erl_marshal.c		\
   tcbdberl.c			\
   tcbdbupdatecounter.c
