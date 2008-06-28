@@ -1,0 +1,8 @@
+Version 1.2.5b
+  * Atomic update_counter support.
+
+Version 1.2.5a
+  * Some OS/X build fixes.
+
+Version 1.2.5
+  * Corresponds to tokyocabinet-1.2.5
