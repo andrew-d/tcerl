@@ -721,22 +721,28 @@ bdb_update_counter (TcDriverData* d,
 
       if (vbuf != NULL)
         {
-          unsigned char dest[vsiz + 3];
+          int dest_len = vsiz + 3;
+          unsigned char dest[dest_len];
           int32_t result;
 
           if (tcbdb_update_counter (vbuf,
                                     vsiz,
                                     dest,
-                                    vsiz + 3, 
+                                    &dest_len,
                                     from.bdb_update_counter.pos,
                                     from.bdb_update_counter.incr,
-                                    &result))
+                                    &result) &&
+              tcbdbput (d->bdb,
+                        from.bdb_get.kbuf,
+                        from.bdb_get.ksiz,
+                        dest,
+                        dest_len))
             {
-              reply_string (d->port, "invalid update");
+              reply_binary_singleton (d->port, &result, 4);
             }
           else
             {
-              reply_binary_singleton (d->port, &result, 4);
+              reply_string (d->port, "invalid update");
             }
         }
       else /* vbuf == NULL */

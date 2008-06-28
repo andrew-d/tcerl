@@ -77,7 +77,7 @@ update_tuple   (uint32_t                  elems,
                 const unsigned char*      source,
                 int                       source_len,
                 unsigned char*            dest,
-                int                       dest_len,
+                int*                      dest_len,
                 uint32_t                  pos,
                 int32_t                   incr,
                 int32_t*                  result);
@@ -90,23 +90,23 @@ int
 tcbdb_update_counter (const unsigned char*      source,
                       int                       source_len,
                       unsigned char*            dest,
-                      int                       dest_len,
+                      int*                      dest_len,
                       uint32_t                  pos,
                       int32_t                   incr,
                       int32_t*                  result)
 {
   if (   source_len < 1
-      || dest_len < source_len
+      || (*dest_len) < source_len + 3
       || *source != ERL_MAGIC)
     {
-      return 1;
+      return 0;
     }
 
   ++source;
   --source_len;
 
   *dest++ = ERL_MAGIC;
-  dest_len = 1;
+  *dest_len = 1;
 
   if (is_small_tuple (source, source_len))
     {
@@ -114,7 +114,7 @@ tcbdb_update_counter (const unsigned char*      source,
       --source_len;
 
       *dest++ = SMALL_TUPLE;
-      --dest_len;
+      ++(*dest_len);
 
       uint8_t elems = small_integer (source);
 
@@ -122,7 +122,7 @@ tcbdb_update_counter (const unsigned char*      source,
       --source_len;
 
       *dest++ = elems;
-      --dest_len;
+      ++(*dest_len);
 
       return update_tuple (elems,
                            source,
@@ -139,7 +139,7 @@ tcbdb_update_counter (const unsigned char*      source,
       --source_len;
 
       *dest++ = LARGE_TUPLE;
-      --dest_len;
+      ++(*dest_len);
 
       uint32_t elems = unsigned_large_integer (source);
 
@@ -147,7 +147,8 @@ tcbdb_update_counter (const unsigned char*      source,
       source_len -= 4;
 
       memcpy (dest, source, 4);
-      dest_len -= 4;
+      *dest += 4;
+      *dest_len += 4;
 
       return update_tuple (elems,
                            source,
@@ -160,7 +161,7 @@ tcbdb_update_counter (const unsigned char*      source,
     }
   else
     {
-      return 1;
+      return 0;
     }
 }
 
@@ -176,20 +177,19 @@ copy_element    (const unsigned char**  source,
 {
   int source_index = 0;
 
-  if (   ei_skip_term ((const char *) *source, &source_index) < 0
-      || *dest_len < source_index)
+  if (ei_skip_term ((const char *) *source, &source_index) < 0)
     {
-      return 1;
+      return 0;
     }
 
   memcpy (*dest, *source, source_index);
 
   *dest += source_index;
   *source += source_index;
-  *dest_len -= source_index;
+  *dest_len += source_index;
   *source_len -= source_index;
 
-  return 0;
+  return 1;
 }
 
 static int
@@ -271,22 +271,22 @@ output_integer (int32_t         val,
   if (val >= 0 && val < 256)
     {
       *(*dest)++ = SMALL_INT;
-      --(*dest_len);
+      ++(*dest_len);
 
       *(*dest)++ = val;
-      --(*dest_len);
+      ++(*dest_len);
     }
   else 
     {
       *(*dest)++ = LARGE_INT;
-      --(*dest_len);
+      ++(*dest_len);
 
       *dest[3] = (val & 0xFF000000) >> 24;
       *dest[2] = (val & 0x00FF0000) >> 16;
       *dest[1] = (val & 0x0000FF00) >> 8;
       *dest[0] = (val & 0x000000FF);
 
-      (*dest_len) -= 4;
+      *dest_len += 4;
     }
 }
 
@@ -295,7 +295,7 @@ update_tuple   (uint32_t                  elems,
                 const unsigned char*      source,
                 int                       source_len,
                 unsigned char*            dest,
-                int                       dest_len,
+                int*                      dest_len,
                 uint32_t                  pos,
                 int32_t                   incr,
                 int32_t*                  result)
@@ -304,14 +304,14 @@ update_tuple   (uint32_t                  elems,
 
   if (pos > elems)
     {
-      return 1;
+      return 0;
     }
 
   for (i = 1; i < pos; ++i)
     {
-      if (copy_element (&source, &source_len, &dest, &dest_len))
+      if (! copy_element (&source, &source_len, &dest, dest_len))
         {
-          return 1;
+          return 0;
         }
     }
 
@@ -327,7 +327,7 @@ update_tuple   (uint32_t                  elems,
 
       val += incr;
 
-      output_integer (val, &dest, &dest_len);
+      output_integer (val, &dest, dest_len);
 
       *result = val;
     }
@@ -343,7 +343,7 @@ update_tuple   (uint32_t                  elems,
 
       val += incr;
 
-      output_integer (val, &dest, &dest_len);
+      output_integer (val, &dest, dest_len);
 
       *result = val;
     }
@@ -352,16 +352,16 @@ update_tuple   (uint32_t                  elems,
       /* punt on bignums for now */
       /* TODO: use ei_decode_term here to grab the bignum field */
 
-      return 1;
+      return 0;
     }
 
   for (i = pos; i < elems; ++i)
     {
-      if (copy_element (&source, &source_len, &dest, &dest_len))
+      if (! copy_element (&source, &source_len, &dest, dest_len))
         {
-          return 1;
+          return 0;
         }
     }
 
-  return 0;
+  return 1;
 }
