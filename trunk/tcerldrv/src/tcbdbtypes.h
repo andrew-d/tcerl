@@ -1,17 +1,7 @@
 #ifndef __TC_ERL_TYPES_H_
 #define __TC_ERL_TYPES_H_
 
-#include <stdbool.h>
-
-#ifdef __cplusplus
-extern "C"
-    {
-#endif
-
 typedef struct _TcDriverData TcDriverData;
-typedef struct _FromEmulator FromEmulator;
-typedef void (*handler) (TcDriverData*, FromEmulator);
-
 enum _RequestType 
 {
   EMULATOR_REQUEST_BDB_TUNE = 0,
@@ -36,6 +26,17 @@ enum _RequestType
   EMULATOR_REQUEST_INVALID = 255
 };
 typedef enum _RequestType RequestType;
+
+
+#include <stdbool.h>
+#include "tcbdbfrom.h"
+
+typedef void (*handler) (TcDriverData*, FromEmulator);
+
+#ifdef __cplusplus
+extern "C"
+    {
+#endif
 
 static bool
 is_request_type (unsigned char type)
