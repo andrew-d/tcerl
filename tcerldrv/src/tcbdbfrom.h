@@ -1,6 +1,8 @@
 #ifndef __TC_ERL_FROM_H_
 #define __TC_ERL_FROM_H_
 
+typedef struct _FromEmulator FromEmulator;
+
 #include "tcbdbcodec.h"
 #include "tcbdbtypes.h"
 
