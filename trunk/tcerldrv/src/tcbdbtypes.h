@@ -27,7 +27,6 @@ enum _RequestType
 };
 typedef enum _RequestType RequestType;
 
-
 #include <stdbool.h>
 #include "tcbdbfrom.h"
 
