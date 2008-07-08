@@ -998,12 +998,12 @@ analyze_pattern_complete (Pattern, Acc) ->
 
 % for recursing along lists or tuples
 analyze_pattern_complete_elements ([], true, Acc) ->
-  { [ <<106>> | Acc ], complete };
+  { complete, [ <<106>> | Acc ] };
 analyze_pattern_complete_elements ([], false, Acc) ->
-  { Acc, complete };
+  { complete, Acc };
 analyze_pattern_complete_elements ([ H | T ], AddTail, Acc) ->
   case analyze_pattern_complete (H, Acc) of
-    { NewAcc, complete } ->
+    { complete, NewAcc } ->
       analyze_pattern_complete_elements (T, AddTail, NewAcc);
     R ->
       R

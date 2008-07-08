@@ -1,3 +1,6 @@
+Version 1.2.5c
+  * fix analyze_matchspec bug
+
 Version 1.2.5b
   * "default sandwich" fix
   * atomic update counter
