@@ -1,0 +1,14 @@
+Version 1.2.5d
+  * Fix my_erl_compare_ext bug (strings <=> lists).
+
+Version 1.2.5c
+  * Type declaration ordering fix.
+
+Version 1.2.5b
+  * Atomic update_counter support.
+
+Version 1.2.5a
+  * Some OS/X build fixes.
+
+Version 1.2.5
+  * Corresponds to tokyocabinet-1.2.5
