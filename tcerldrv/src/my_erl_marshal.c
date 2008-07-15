@@ -305,6 +305,7 @@ static int cmp_string_list(unsigned char **e1, unsigned char **e2)
   /* 5 (list tag + length) + 2*string length + 1 (end of list tag)        */
   /* for short lists we use a stack allocated buffer, otherwise we malloc */
 
+  unsigned char *bp_orig;
   unsigned char *bp;
   unsigned char buf[5+2*255+1]; /* used for short lists */
   int i,e1_len;
@@ -316,6 +317,8 @@ static int cmp_string_list(unsigned char **e1, unsigned char **e2)
   } else {
     bp = malloc(5+(2*e1_len)+1);
   }
+
+  bp_orig = bp;
 
   bp[0] = ERL_LIST_EXT;
   bp[1] = bp[2] = 0;
@@ -331,7 +334,9 @@ static int cmp_string_list(unsigned char **e1, unsigned char **e2)
 
   res = cmp_exe2(&bp, e2);
 
-  if ( e1_len >= 256 ) free(bp);
+  *e1 += 3 + e1_len;
+
+  if ( e1_len >= 256 ) free(bp_orig);
 
   return res;
 }
