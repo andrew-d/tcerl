@@ -378,6 +378,8 @@ insert (TcBdbEts = #tcbdbets{ keypos = KeyPos },
 %% and true returned.
 %% @end
 
+%% TODO: this could be made faster at the driver layer ...
+
 insert_new (_TcBdbEts = #tcbdbets{ access = read }, _Object) ->
   { error, read_only };
 insert_new (TcBdbEts, Object) when is_tuple (Object) ->
@@ -2364,5 +2366,24 @@ update_counter_test_ () ->
     end,
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
   }.
+
+select_bug_test () ->
+  tcerl:start (),
+  file:delete ("flass" ++ os:getpid ()),
+  { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
+                                    { keypos, 2 } ]),
+  try
+    Record = { userdatum, { "cl", 1, <<0,4,82,4,122,47,243,186>> }, "sx" },
+    ok = tcbdbets:insert (R, Record),
+    GoodMs = [ { { userdatum, { "cl", '_', '_' }, '_' }, [], [ '$_' ] } ],
+    BadMs = [ { { userdatum, { "cl", 1, '_' }, '_' }, [], [ '$_' ] } ],
+
+    [ Record ] = tcbdbets:select (R, GoodMs),
+    [ Record ] = tcbdbets:select (R, BadMs),
+    true
+  after
+    tcerl:stop (),
+    file:delete ("flass" ++ os:getpid ())
+  end.
 
 -endif.
