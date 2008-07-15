@@ -1,3 +1,6 @@
+Version 1.2.5d
+  * add test for select bug (now fixed, at the tcerldrv level)
+
 Version 1.2.5c
   * fix analyze_matchspec bug
 
