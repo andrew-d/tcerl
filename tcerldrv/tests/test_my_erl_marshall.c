@@ -14,8 +14,8 @@ test_order_bug_zero ()
     /*    {     "cl"                        , 1  , '_' } (largest) */
     { 131,104,3,108,0,0,0,2,97,99,97,108,106,97,1,255 };
 
-  assert (my_erl_compare_ext (&term_one, &term_two) < 0);
-  assert (my_erl_compare_ext (&term_two, &term_three) < 0);
+  assert (my_erl_compare_ext (term_one, term_two) < 0);
+  assert (my_erl_compare_ext (term_two, term_three) < 0);
 }
 
 int 
