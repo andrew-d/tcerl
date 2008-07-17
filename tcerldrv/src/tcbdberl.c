@@ -59,7 +59,6 @@ tcbdb_start    (ErlDrvPort     port,
   if (info.thread_support && info.async_threads > 0)
     {
       d->async_threads = 1;
-      tcbdbsetmutex (d->bdb);
     }
   d->cur = tcbdbcurnew (d->bdb);
   init_handlers (d->handlers);
@@ -77,13 +76,11 @@ async_invoke (void* data)
   switch (from->type)
     {
       case EMULATOR_REQUEST_INVALID:
+        break;
+
       case EMULATOR_REQUEST_BDB_TUNE:
       case EMULATOR_REQUEST_BDB_OPEN:
       case EMULATOR_REQUEST_BDB_CLOSE:
-      case EMULATOR_REQUEST_BDB_INFO:
-        /* should not happen */
-        break;
-
       case EMULATOR_REQUEST_BDB_PUT:
       case EMULATOR_REQUEST_BDB_PUT_DUP:
       case EMULATOR_REQUEST_BDB_OUT:
@@ -96,6 +93,7 @@ async_invoke (void* data)
       case EMULATOR_REQUEST_BDB_FWM:
       case EMULATOR_REQUEST_BDB_VANISH:
       case EMULATOR_REQUEST_BDB_OUT_EXACT:
+      case EMULATOR_REQUEST_BDB_INFO:
       case EMULATOR_REQUEST_BDB_SYNC:
       case EMULATOR_REQUEST_BDB_UPDATE_COUNTER:
         from->d->handlers[from->type] (from);
@@ -110,6 +108,14 @@ async_free (void* data)
   switch (from->to.type)
     {
       case EMULATOR_REPLY_INVALID:
+        break;
+
+      case EMULATOR_REPLY_BINARY:
+        reply_binary (from->d->port,
+                      from->caller,
+                      from->to.binary.data,
+                      from->to.binary.len);
+
         break;
 
       case EMULATOR_REPLY_BINARY_SINGLETON:
@@ -158,26 +164,6 @@ tcbdb_output           (ErlDrvData     handle,
     {
       case EMULATOR_REQUEST_INVALID:
         reply_string (d->port, driver_caller (d->port), "invalid request");
-
-        break;
-
-      case EMULATOR_REQUEST_BDB_TUNE:
-        bdb_tune (d, from);
-
-        break;
-
-      case EMULATOR_REQUEST_BDB_OPEN:
-        bdb_open (d, from);
-
-        break;
-
-      case EMULATOR_REQUEST_BDB_CLOSE:
-        bdb_close (d, from);
-
-        break;
-
-      case EMULATOR_REQUEST_BDB_INFO:
-        bdb_info (d, from);
 
         break;
 

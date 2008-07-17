@@ -1,4 +1,7 @@
-Version 1.2.5e [ NYR ]
+Version 1.2.5f
+  * Attempt to get rid of deadlock (by serializing and avoiding tcbdbsetmutex)
+
+Version 1.2.5e
   * Use driver_async to avoid blocking the emulator on disk i/o.
 
 Version 1.2.5d

@@ -350,12 +350,16 @@ from_emulator_dup (FromEmulator* from)
       switch (from->type)
         {
           case EMULATOR_REQUEST_BDB_TUNE:
-          case EMULATOR_REQUEST_BDB_OPEN:
-          case EMULATOR_REQUEST_BDB_CLOSE:
-          case EMULATOR_REQUEST_BDB_INFO:
-            /* should not happen */
-            dup->type = EMULATOR_REQUEST_INVALID;
 
+            break;
+
+          case EMULATOR_REQUEST_BDB_OPEN:
+            dup->bdb_open.path = my_memdup (from->bdb_open.path,
+                                            1 + strlen (from->bdb_open.path));
+
+            break;
+
+          case EMULATOR_REQUEST_BDB_CLOSE:
             break;
 
           case EMULATOR_REQUEST_BDB_PUT:
@@ -432,6 +436,10 @@ from_emulator_dup (FromEmulator* from)
 
             break;
 
+          case EMULATOR_REQUEST_BDB_INFO:
+            
+            break;
+
           case EMULATOR_REQUEST_BDB_SYNC:
 
             break;
@@ -464,11 +472,19 @@ from_emulator_free (FromEmulator* dup)
       switch (dup->type)
         {
           case EMULATOR_REQUEST_INVALID:
+
+            break;
+
           case EMULATOR_REQUEST_BDB_TUNE:
+
+            break;
+
           case EMULATOR_REQUEST_BDB_OPEN:
+            my_free (dup->bdb_open.path);
+
+            break;
+
           case EMULATOR_REQUEST_BDB_CLOSE:
-          case EMULATOR_REQUEST_BDB_INFO:
-            /* should not happen */
 
             break;
 
@@ -533,6 +549,10 @@ from_emulator_free (FromEmulator* dup)
 
             break;
 
+          case EMULATOR_REQUEST_BDB_INFO:
+
+            break;
+
           case EMULATOR_REQUEST_BDB_SYNC:
 
             break;
@@ -569,6 +589,16 @@ static void
 make_reply_empty_list (FromEmulator* from)
 {
   from->to.type = EMULATOR_REPLY_EMPTY_LIST;
+}
+
+static void
+make_reply_binary (FromEmulator* from,
+                   const void*   data,
+                   int           len)
+{
+  from->to.type = EMULATOR_REPLY_BINARY;
+  from->to.binary.data = my_memdup (data, len);
+  from->to.binary.len = len;
 }
 
 static void
