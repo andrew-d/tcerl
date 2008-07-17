@@ -1,3 +1,6 @@
+Version 1.2.5e [ NYR ]
+  * Use driver_async to avoid blocking the emulator on disk i/o.
+
 Version 1.2.5d
   * Fix my_erl_compare_ext bug (strings <=> lists).
 
