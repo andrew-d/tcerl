@@ -1,3 +1,6 @@
+Version 1.2.5e
+  * add async thread support (tcerldrv change only, just syncing version nums)
+
 Version 1.2.5d
   * add test for select bug (now fixed, at the tcerldrv level)
 
