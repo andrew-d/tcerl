@@ -1,5 +1,5 @@
 Version 1.2.5f
-  * Attempt to get rid of deadlock (by serializing and avoiding tcbdbsetmutex)
+  * (Apparently) get rid of deadlock (by serializing and avoiding tcbdbsetmutex)
 
 Version 1.2.5e
   * Use driver_async to avoid blocking the emulator on disk i/o.
