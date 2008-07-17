@@ -3,11 +3,12 @@
 
 enum _ReplyType 
 {
-  EMULATOR_REPLY_BINARY_SINGLETON = 0,
-  EMULATOR_REPLY_BINARY_LIST = 1,
-  EMULATOR_REPLY_EMPTY_LIST = 2,
-  EMULATOR_REPLY_STRING = 3,
-  EMULATOR_REPLY_ERROR = 4,
+  EMULATOR_REPLY_BINARY = 0,
+  EMULATOR_REPLY_BINARY_SINGLETON = 1,
+  EMULATOR_REPLY_BINARY_LIST = 2,
+  EMULATOR_REPLY_EMPTY_LIST = 3,
+  EMULATOR_REPLY_STRING = 4,
+  EMULATOR_REPLY_ERROR = 5,
 
   EMULATOR_REPLY_INVALID = 255
 };
@@ -29,6 +30,12 @@ struct _ToEmulator
 
   union
     {
+      struct
+        {
+          void*         data;
+          int           len;
+        }                       binary;
+
       struct
         {
           void*         data;
@@ -62,6 +69,11 @@ to_emulator_destruct (ToEmulator to)
   switch (to.type)
     {
       case EMULATOR_REPLY_INVALID:
+        break;
+
+      case EMULATOR_REPLY_BINARY:
+        driver_free (to.binary.data);
+
         break;
 
       case EMULATOR_REPLY_BINARY_SINGLETON:

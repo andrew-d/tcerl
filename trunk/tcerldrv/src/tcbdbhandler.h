@@ -17,108 +17,81 @@ erlang_term_compare (const char* aptr,
                      void*       op);
 
 /*=====================================================================*
- *                             Sync methods                            *
- *=====================================================================*/
-
-static void
-bdb_tune        (TcDriverData*  d,
-                 FromEmulator   from)
-{
-  if (! d->open)
-    {
-      if (   tcbdbtune (d->bdb, 
-                        from.bdb_tune.lmemb,
-                        from.bdb_tune.nmemb,
-                        from.bdb_tune.bnum,
-                        from.bdb_tune.apow,
-                        from.bdb_tune.fpow,
-                        from.bdb_tune.opts)
-          && tcbdbsetcache (d->bdb,
-                            from.bdb_tune.lcnum,
-                            from.bdb_tune.ncnum)
-          && (from.bdb_tune.raw ||
-              tcbdbsetcmpfunc (d->bdb, erlang_term_compare, NULL)))
-        {
-          reply_string (d->port, driver_caller (d->port), "ok");
-        }
-      else
-        {
-          reply_error (d->port, driver_caller (d->port), tcbdbecode (d->bdb));
-        }
-    }
-  else
-    {
-      reply_string (d->port, driver_caller (d->port), "already open");
-    }
-}
-
-static void
-bdb_open        (TcDriverData*  d,
-                 FromEmulator   from)
-{
-  if (! d->open)
-    {
-      if (tcbdbopen (d->bdb, from.bdb_open.path, from.bdb_open.omode))
-        {
-          reply_string (d->port, driver_caller (d->port), "ok");
-          d->open = 1;
-        }
-      else
-        {
-          reply_error (d->port, driver_caller (d->port), tcbdbecode (d->bdb));
-        }
-    }
-  else
-    {
-      reply_string (d->port, driver_caller (d->port), "already open");
-    }
-}
-
-static void
-bdb_close        (TcDriverData* d,
-                  FromEmulator  from)
-{
-  (void) from;
-
-  if (d->open)
-    {
-      if (tcbdbclose (d->bdb))
-        {
-          reply_string (d->port, driver_caller (d->port), "ok");
-          d->open = 0;
-        }
-      else
-        {
-          reply_error (d->port, driver_caller (d->port), tcbdbecode (d->bdb));
-        }
-    }
-  else
-    {
-      reply_string (d->port, driver_caller (d->port), "not open");
-    }
-}
-
-static void
-bdb_info        (TcDriverData* d,
-                 FromEmulator  from)
-{
-  (void) from;
-
-  if (d->open)
-    {
-      uint64_t data[2] = { tcbdbfsiz (d->bdb), tcbdbrnum (d->bdb) };
-
-      reply_binary (d->port, driver_caller (d->port), data, 16);
-    }
-  else
-    {
-      reply_string (d->port, driver_caller (d->port), "not open");
-    }
-}
-
-/*=====================================================================*
  *                            Async methods                            *
  *=====================================================================*/
+
+static void
+bdb_tune        (FromEmulator* from)
+{
+  if (! from->d->open)
+    {
+      if (   tcbdbtune (from->d->bdb, 
+                        from->bdb_tune.lmemb,
+                        from->bdb_tune.nmemb,
+                        from->bdb_tune.bnum,
+                        from->bdb_tune.apow,
+                        from->bdb_tune.fpow,
+                        from->bdb_tune.opts)
+          && tcbdbsetcache (from->d->bdb,
+                            from->bdb_tune.lcnum,
+                            from->bdb_tune.ncnum)
+          && (from->bdb_tune.raw ||
+              tcbdbsetcmpfunc (from->d->bdb, erlang_term_compare, NULL)))
+        {
+          make_reply_string (from, "ok");
+        }
+      else
+        {
+          make_reply_error (from, tcbdbecode (from->d->bdb));
+        }
+    }
+  else
+    {
+      make_reply_string (from, "already open");
+    }
+}
+
+static void
+bdb_open        (FromEmulator* from)
+{
+  if (! from->d->open)
+    {
+      if (tcbdbopen (from->d->bdb, from->bdb_open.path, from->bdb_open.omode))
+        {
+          make_reply_string (from, "ok");
+          from->d->open = 1;
+        }
+      else
+        {
+          make_reply_error (from, tcbdbecode (from->d->bdb));
+        }
+    }
+  else
+    {
+      make_reply_string (from, "already open");
+    }
+}
+
+static void
+bdb_close        (FromEmulator* from)
+{
+  if (from->d->open)
+    {
+      if (tcbdbclose (from->d->bdb))
+        {
+          make_reply_string (from, "ok");
+          from->d->open = 0;
+        }
+      else
+        {
+          make_reply_error (from, tcbdbecode (from->d->bdb));
+        }
+    }
+  else
+    {
+      make_reply_string (from, "not open");
+    }
+}
 
 static void
 bdb_put         (FromEmulator* from)
@@ -524,6 +497,21 @@ ERROR:
 }
 
 static void
+bdb_info        (FromEmulator* from)
+{
+  if (from->d->open)
+    {
+      uint64_t data[2] = { tcbdbfsiz (from->d->bdb), tcbdbrnum (from->d->bdb) };
+
+      make_reply_binary (from, data, 16);
+    }
+  else
+    {
+      make_reply_string (from, "not open");
+    }
+}
+
+static void
 bdb_sync         (FromEmulator* from)
 {
   if (from->d->open)
@@ -602,9 +590,9 @@ bdb_update_counter (FromEmulator* from)
 static void
 init_handlers (handler* handlers)
 {
-//  handlers[EMULATOR_REQUEST_BDB_TUNE] = bdb_tune;
-//  handlers[EMULATOR_REQUEST_BDB_OPEN] = bdb_open;
-//  handlers[EMULATOR_REQUEST_BDB_CLOSE] = bdb_close;
+  handlers[EMULATOR_REQUEST_BDB_TUNE] = bdb_tune;
+  handlers[EMULATOR_REQUEST_BDB_OPEN] = bdb_open;
+  handlers[EMULATOR_REQUEST_BDB_CLOSE] = bdb_close;
   handlers[EMULATOR_REQUEST_BDB_PUT] = bdb_put;
   handlers[EMULATOR_REQUEST_BDB_PUT_DUP] = bdb_put_dup;
   handlers[EMULATOR_REQUEST_BDB_OUT] = bdb_out;
@@ -617,7 +605,7 @@ init_handlers (handler* handlers)
   handlers[EMULATOR_REQUEST_BDB_FWM] = bdb_fwm;
   handlers[EMULATOR_REQUEST_BDB_VANISH] = bdb_vanish;
   handlers[EMULATOR_REQUEST_BDB_OUT_EXACT] = bdb_out_exact;
-//  handlers[EMULATOR_REQUEST_BDB_INFO] = bdb_info;
+  handlers[EMULATOR_REQUEST_BDB_INFO] = bdb_info;
   handlers[EMULATOR_REQUEST_BDB_SYNC] = bdb_sync;
   handlers[EMULATOR_REQUEST_BDB_UPDATE_COUNTER] = bdb_update_counter;
 }
