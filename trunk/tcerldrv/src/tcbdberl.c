@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "tcbdbfrom.h"
+#include "tcbdbto.h"
 #include "tcbdbhandler.h"
 
 #include "my_erl_marshal.h"
@@ -51,37 +52,38 @@ tcbdb_start    (ErlDrvPort     port,
 
   memset (d, 0, sizeof (TcDriverData));
 
+  d->ref_count = 1;
   d->port = port;
   d->bdb = tcbdbnew ();
   driver_system_info (&info, sizeof (info));
-  if (info.smp_support)
+  if (info.thread_support && info.async_threads > 0)
     {
+      d->async_threads = 1;
       tcbdbsetmutex (d->bdb);
     }
   d->cur = tcbdbcurnew (d->bdb);
   init_handlers (d->handlers);
 
+  d->magic = ((intptr_t) d) >> 8;
+
   return (ErlDrvData) d;
 }
 
 static void
-tcbdb_output           (ErlDrvData     handle,
-                        char*          buf,
-                        int            buflen)
+async_invoke (void* data)
 {
-  TcDriverData* d = (TcDriverData*) handle;
-  FromEmulator from_emulator = decode_from (buf, buflen);
+  FromEmulator* from = (FromEmulator *) data;
 
-  switch (from_emulator.type)
+  switch (from->type)
     {
       case EMULATOR_REQUEST_INVALID:
-        reply_string (d->port, "invalid request");
-
-        break;
-
       case EMULATOR_REQUEST_BDB_TUNE:
       case EMULATOR_REQUEST_BDB_OPEN:
       case EMULATOR_REQUEST_BDB_CLOSE:
+      case EMULATOR_REQUEST_BDB_INFO:
+        /* should not happen */
+        break;
+
       case EMULATOR_REQUEST_BDB_PUT:
       case EMULATOR_REQUEST_BDB_PUT_DUP:
       case EMULATOR_REQUEST_BDB_OUT:
@@ -94,10 +96,97 @@ tcbdb_output           (ErlDrvData     handle,
       case EMULATOR_REQUEST_BDB_FWM:
       case EMULATOR_REQUEST_BDB_VANISH:
       case EMULATOR_REQUEST_BDB_OUT_EXACT:
-      case EMULATOR_REQUEST_BDB_INFO:
       case EMULATOR_REQUEST_BDB_SYNC:
       case EMULATOR_REQUEST_BDB_UPDATE_COUNTER:
-        d->handlers[from_emulator.type] (d, from_emulator);
+        from->d->handlers[from->type] (from);
+    }
+}
+
+static void
+async_free (void* data)
+{
+  FromEmulator* from = (FromEmulator*) data;
+
+  switch (from->to.type)
+    {
+      case EMULATOR_REPLY_INVALID:
+        break;
+
+      case EMULATOR_REPLY_BINARY_SINGLETON:
+        reply_binary_singleton (from->d->port,
+                                from->caller,
+                                from->to.binary_singleton.data,
+                                from->to.binary_singleton.len);
+
+        break;
+
+      case EMULATOR_REPLY_BINARY_LIST:
+        reply_binary_list (from->d->port,
+                           from->caller,
+                           from->to.binary_list.vals);
+
+        break;
+
+      case EMULATOR_REPLY_EMPTY_LIST:
+        reply_empty_list (from->d->port, from->caller);
+
+        break;
+
+      case EMULATOR_REPLY_STRING:
+        reply_string (from->d->port, from->caller, from->to.string.data);
+
+        break;
+
+      case EMULATOR_REPLY_ERROR:
+        reply_error (from->d->port, from->caller, from->to.error.ecode);
+
+        break;
+    }
+
+  from_emulator_free (from);
+}
+
+static void
+tcbdb_output           (ErlDrvData     handle,
+                        char*          buf,
+                        int            buflen)
+{
+  TcDriverData* d = (TcDriverData*) handle;
+  FromEmulator from = decode_from (d, buf, buflen);
+
+  switch (from.type)
+    {
+      case EMULATOR_REQUEST_INVALID:
+        reply_string (d->port, driver_caller (d->port), "invalid request");
+
+        break;
+
+      case EMULATOR_REQUEST_BDB_TUNE:
+        bdb_tune (d, from);
+
+        break;
+
+      case EMULATOR_REQUEST_BDB_OPEN:
+        bdb_open (d, from);
+
+        break;
+
+      case EMULATOR_REQUEST_BDB_CLOSE:
+        bdb_close (d, from);
+
+        break;
+
+      case EMULATOR_REQUEST_BDB_INFO:
+        bdb_info (d, from);
+
+        break;
+
+      default:
+        driver_async (d->port,
+                      &d->magic,
+                      async_invoke,
+                      from_emulator_dup (&from),
+                      async_free);
 
         break;
     }
@@ -113,9 +202,7 @@ tcbdb_stop      (ErlDrvData      handle)
       tcbdbclose (d->bdb);
     }
 
-  tcbdbcurdel (d->cur);
-  tcbdbdel (d->bdb);
-  driver_free (d);
+  data_unref (d);
 }
 
 /*=====================================================================*
