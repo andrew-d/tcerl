@@ -1,1 +1,3 @@
 break out matchspec anal into seperate library
+
+optimize match_delete when pattern matches everything
