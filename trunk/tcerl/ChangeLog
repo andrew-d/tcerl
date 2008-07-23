@@ -1,3 +1,6 @@
+Version 1.2.5g [ NYR ] 
+  * optimize global select_delete (and match_delete)
+
 Version 1.2.5f
   * non-deadlocking async thread support (tcerldrv change only)
 
