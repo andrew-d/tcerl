@@ -54,7 +54,7 @@ print_trace (void)
   free (strings);
 }
 #else
-void
+static void
 print_trace (void)
 {
   fprintf (stderr, "Can't print backtrace.\n");
