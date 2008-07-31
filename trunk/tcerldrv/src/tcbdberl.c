@@ -66,6 +66,12 @@ my_fatal_func (const char *message)
 {
   fprintf (stderr, "fatal error in tcerl: %s\n", message);
   print_trace ();
+
+  /* tokyocabinet calls exit (1) ...
+   * instead call abort to get a core file 
+   */
+
+  abort ();
 }
 
 /*=====================================================================*
