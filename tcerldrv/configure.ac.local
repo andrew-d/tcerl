@@ -44,3 +44,5 @@ AC_SUBST([TOKYOCABINET_LIBS])
 
 AC_CHECK_HEADERS([erl_driver.h], ,
                  [AC_MSG_ERROR([ need erl_driver.h to proceed ])])
+
+AC_CHECK_FUNCS([backtrace_symbols])
