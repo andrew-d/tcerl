@@ -784,7 +784,9 @@ select_delete (_TcBdbEts = #tcbdbets{ access = read }, _MatchSpec) ->
   { error, read_only };
 select_delete (TcBdbEts = #tcbdbets{}, [ { '_', [], [ true ] } ]) ->
   % efficient special case
-  delete_all_objects (TcBdbEts);
+  NumObjects = info (TcBdbEts, no_objects),
+  ok = delete_all_objects (TcBdbEts),
+  NumObjects;
 select_delete (TcBdbEts = #tcbdbets{}, MatchSpec) ->
   Intervals = analyze_matchspec (MatchSpec, TcBdbEts#tcbdbets.keypos),
 
