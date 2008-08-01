@@ -142,6 +142,7 @@ async_invoke (void* data)
       case EMULATOR_REQUEST_BDB_INFO:
       case EMULATOR_REQUEST_BDB_SYNC:
       case EMULATOR_REQUEST_BDB_UPDATE_COUNTER:
+      case EMULATOR_REQUEST_BDB_OUT_ASYNC:
         from->d->handlers[from->type] (from);
     }
 }
@@ -191,6 +192,10 @@ async_free (void* data)
 
       case EMULATOR_REPLY_ERROR:
         reply_error (from->d->port, from->caller, from->to.error.ecode);
+
+        break;
+
+      case EMULATOR_REPLY_NULL:
 
         break;
     }
