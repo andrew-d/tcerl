@@ -68,7 +68,7 @@
 % so can't be captured by a guard
 -define (is_iodata (X), (is_list (X) orelse is_binary (X))).
 
-%% @type access() = read | read_write.
+%% @type access() = read | read_write 
 %% @type type() = ordered_set | ordered_duplicate_bag. 
 %% @type object () = tuple ().
 %% @end
@@ -121,6 +121,9 @@ close (TcBdbEts = #tcbdbets{}) ->
 
 delete (_TcBdbEts = #tcbdbets{ access = read }, _Key) ->
   { error, read_only };
+delete (TcBdbEts = #tcbdbets{ access = read_write_async }, Key) ->
+  tcbdb:out_async (TcBdbEts#tcbdbets.tcerl, 
+                   erlang:term_to_binary (Key, [ { minor_version, 1 } ]));
 delete (TcBdbEts = #tcbdbets{}, Key) ->
   tcbdb:out (TcBdbEts#tcbdbets.tcerl, 
              erlang:term_to_binary (Key, [ { minor_version, 1 } ])).
@@ -142,12 +145,20 @@ delete_all_objects (TcBdbEts = #tcbdbets{}) ->
 
 delete_object (_TcBdbEts = #tcbdbets{ access = read }, _Object) ->
   { error, read_only };
-delete_object (TcBdbEts = #tcbdbets{}, Object) when is_tuple (Object) ->
+delete_object (TcBdbEts = #tcbdbets{ access = read_write_async },
+               Object) when is_tuple (Object) ->
   Key = element (TcBdbEts#tcbdbets.keypos, Object),
-  tcbdb:out_exact (TcBdbEts#tcbdbets.tcerl,
-                   erlang:term_to_binary (Key, [ { minor_version, 1 } ]),
-                   erlang:term_to_binary (Object, [ { minor_version, 1 } ])).
-
+  tcbdb:out_exact_async 
+    (TcBdbEts#tcbdbets.tcerl,
+     erlang:term_to_binary (Key, [ { minor_version, 1 } ]),
+     erlang:term_to_binary (Object, [ { minor_version, 1 } ]));
+delete_object (TcBdbEts = #tcbdbets{},
+               Object) when is_tuple (Object) ->
+  Key = element (TcBdbEts#tcbdbets.keypos, Object),
+  tcbdb:out_exact 
+    (TcBdbEts#tcbdbets.tcerl,
+     erlang:term_to_binary (Key, [ { minor_version, 1 } ]),
+     erlang:term_to_binary (Object, [ { minor_version, 1 } ])).
 
 %% @spec first (tcbdbets ()) -> Key | '$end_of_table'
 %% @doc Returns the first key stored in the table according to erlang
@@ -355,14 +366,24 @@ insert (TcBdbEts = #tcbdbets{ keypos = KeyPos },
 
   case TcBdbEts#tcbdbets.type of
     ordered_set ->
-      case tcbdb:put (TcBdbEts#tcbdbets.tcerl, KeyBin, ValueBin) of
+      case case TcBdbEts#tcbdbets.access of
+             read_write -> 
+               tcbdb:put (TcBdbEts#tcbdbets.tcerl, KeyBin, ValueBin);
+             read_write_async ->
+               tcbdb:put_async (TcBdbEts#tcbdbets.tcerl, KeyBin, ValueBin)
+           end of
         ok ->
           insert (TcBdbEts, T);
         R = { error, _Reason } ->
           R
       end;
     ordered_duplicate_bag ->
-      case tcbdb:put_dup (TcBdbEts#tcbdbets.tcerl, KeyBin, ValueBin) of
+    case case TcBdbEts#tcbdbets.access of
+           read_write ->
+             tcbdb:put_dup (TcBdbEts#tcbdbets.tcerl, KeyBin, ValueBin);
+           read_write_async ->
+             tcbdb:put_dup_async (TcBdbEts#tcbdbets.tcerl, KeyBin, ValueBin)
+         end of
         ok ->
           insert (TcBdbEts, T);
         R = { error, _Reason } ->
@@ -622,6 +643,7 @@ prev (TcBdbEts = #tcbdbets{}, Key) ->
 %%            { free_block_pool, integer () } |
 %%            { leaf_node_cache, integer () } |
 %%            { nonleaf_node_cache, integer () } |
+%%            async_write |
 %%            uncompressed | deflate | tcbs 
 %% @doc Opens a table. An empty table is created if no file exists.
 %% 
@@ -631,6 +653,7 @@ prev (TcBdbEts = #tcbdbets{}, Key) ->
 %%    * { file, iodata () }: required
 %%    * { keypos, integer () }, the position of the element of each object to be used as key. The default value is 1. The ability to explicitly state the key position is most convenient when we want to store Erlang records in which the first position of the record is the name of the record type.
 %%    * { type, type () }, the type of the table (ordered_set or ordered_duplicate_bag). The default value is ordered_set.
+%%    * async_write: if indicated, async versions of update operations will be used. 
 %%    * Other tuples indicated above: same interpretation as tcbdb:open/2.  NB: The tcbdb:open/2 options [ term_store, large, nolock ] are always present.
 %% @end
 
@@ -639,14 +662,19 @@ open_file (Args) ->
   case lists:keysearch (file, 1, WithDefaults) of
     false -> { error, file_not_specified };
     { value, { file, File } } ->
-      Access = get_value (access, WithDefaults),
+      RawAccess = get_value (access, WithDefaults),
       KeyPos = get_value (keypos, WithDefaults),
       Type = get_value (type, WithDefaults),
     
-      Mode = case Access of 
+      Mode = case RawAccess of 
                read -> [ reader ];
                read_write -> [ reader, writer, create ]
              end,
+
+      Access = case { lists:member (async_write, WithDefaults), RawAccess } of
+                 { true, read_write } -> read_write_async;
+                 _ -> RawAccess
+               end,
     
       case tcbdb:open (File,
                        [ term_store, large, nolock ] ++ Mode ++ WithDefaults) of
@@ -1364,7 +1392,12 @@ try_delete_objects (TcBdbEts, [ H | T ]) ->
   Key = element (TcBdbEts#tcbdbets.keypos, H),
   KeyBin = erlang:term_to_binary (Key, [ { minor_version, 1 } ]),
   HBin = erlang:term_to_binary (H, [ { minor_version, 1 } ]),
-  case tcbdb:out_exact (TcBdbEts#tcbdbets.tcerl, KeyBin, HBin) of
+  case case TcBdbEts#tcbdbets.access of
+         read_write ->
+            tcbdb:out_exact (TcBdbEts#tcbdbets.tcerl, KeyBin, HBin);
+         read_write_async ->
+            tcbdb:out_exact_async (TcBdbEts#tcbdbets.tcerl, KeyBin, HBin)
+       end of
     ok ->
       try_delete_objects (TcBdbEts, T);
     R = { error, _Reason } -> 
@@ -1563,6 +1596,65 @@ delete_object_test_ () ->
       file:delete ("flass" ++ os:getpid ()),
       { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
                                         { type, ordered_duplicate_bag } ]),
+      R
+    end,
+    fun (_) ->
+      tcerl:stop (),
+      file:delete ("flass" ++ os:getpid ())
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
+delete_object_async_test_ () ->
+  F = fun (R) ->
+    T = 
+      ?FORALL (X,
+               fun (_) -> { random_term (), random_term () } end,
+               (fun ({ Key, Value }) ->
+                  false = tcbdbets:member (R, Key),
+                  ok = tcbdbets:insert (R, { Key, Value }),
+                  [ { Key, Value } ] = tcbdbets:lookup (R, Key),
+                  true = tcbdbets:member (R, Key),
+
+                  ok = tcbdbets:insert (R, { Key, [ Value ] }),
+                  [ { Key, Value },
+                    { Key, [ Value ] } ] = tcbdbets:lookup (R, Key),
+                  true = tcbdbets:member (R, Key),
+
+                  ok = tcbdbets:insert (R, { Key, Value }),
+
+                  [ { Key, Value },
+                    { Key, [ Value ] },
+                    { Key, Value } ] = tcbdbets:lookup (R, Key),
+                  true = tcbdbets:member (R, Key),
+
+                  ok = tcbdbets:delete_object (R, { Key, { Value, 0 } }),
+                  [ { Key, Value },
+                    { Key, [ Value ] },
+                    { Key, Value } ] = tcbdbets:lookup (R, Key),
+                  true = tcbdbets:member (R, Key),
+
+                  ok = tcbdbets:delete_object (R, { Key, Value }),
+                  [ { Key, [ Value ] } ] = tcbdbets:lookup (R, Key),
+                  true = tcbdbets:member (R, Key),
+
+                  ok = tcbdbets:delete_object (R, { Key, [ Value ] }),
+                  [] = tcbdbets:lookup (R, Key),
+                  false = tcbdbets:member (R, Key),
+
+                  true
+                end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      file:delete ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
+                                        { type, ordered_duplicate_bag },
+                                        async_write ]),
       R
     end,
     fun (_) ->
@@ -2102,6 +2194,44 @@ roundtrip_test_ () ->
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
   }.
 
+roundtrip_async_test_ () ->
+  F = fun (R) ->
+    T = 
+      ?FORALL (X,
+               fun (_) -> { random_term (), random_term () } end,
+               (fun ({ Key, Value }) ->
+                  ok = tcbdbets:insert (R, { Key, Value }),
+                  false = tcbdbets:insert_new (R, { Key, Value }),
+                  [ { Key, Value } ] = tcbdbets:lookup (R, Key),
+                  true = tcbdbets:member (R, Key),
+                  ok = tcbdbets:delete (R, Key),
+                  true = tcbdbets:insert_new (R, { Key, Value }),
+                  [ { Key, Value } ] = tcbdbets:lookup (R, Key),
+                  ok = tcbdbets:delete (R, Key),
+                  [] = tcbdbets:lookup (R, Key),
+                  false = tcbdbets:member (R, Key),
+                  ok = tcbdbets:delete (R, Key),
+                  true
+                end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      file:delete ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
+                                        async_write ]),
+      R
+    end,
+    fun (_) ->
+      tcerl:stop (),
+      file:delete ("flass" ++ os:getpid ())
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
 select_test_ () ->
   F = fun ({ Tab, R }) ->
     T = 
@@ -2184,6 +2314,47 @@ select_delete_test_ () ->
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
       { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
+      { Tab, R }
+    end,
+    fun ({ Tab, _ }) ->
+      ets:delete (Tab),
+      tcerl:stop (),
+      file:delete ("flass" ++ os:getpid ())
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
+select_delete_async_test_ () ->
+  F = fun ({ Tab, R }) ->
+    T = 
+      ?FORALL (X,
+               fun (_) -> 
+                { random_term (), random_term (), random_matchspec () }
+               end,
+               (fun ({ Key, Value, MatchSpec }) ->
+                  NewMS = 
+                    [ { Head, Guard, [ random:uniform (2) =:= 1 ] } ||
+                      { Head, Guard, _ } <- MatchSpec ],
+                  TcbdbSelect = tcbdbets:select_delete (R, NewMS),
+                  EtsSelect = ets:select_delete (Tab, NewMS),
+                  TcbdbSelect = EtsSelect,
+
+                  ok = tcbdbets:insert (R, { Key, Value }),
+                  true = ets:insert (Tab, { Key, Value }),
+
+                  true
+                end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      Tab = ets:new (?MODULE, [ public, ordered_set ]),
+      tcerl:start (),
+      file:delete ("flass" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
+                                        async_write ]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->
