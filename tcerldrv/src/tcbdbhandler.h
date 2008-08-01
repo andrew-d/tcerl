@@ -123,10 +123,10 @@ bdb_put_dup     (FromEmulator* from)
   if (from->d->open)
     {
       if (tcbdbputdup (from->d->bdb, 
-                       from->bdb_put.kbuf,
-                       from->bdb_put.ksiz,
-                       from->bdb_put.vbuf,
-                       from->bdb_put.vsiz))
+                       from->bdb_put_dup.kbuf,
+                       from->bdb_put_dup.ksiz,
+                       from->bdb_put_dup.vbuf,
+                       from->bdb_put_dup.vsiz))
         {
           make_reply_string (from, "ok");
         }
@@ -677,6 +677,21 @@ ERROR:
 }
 
 static void
+bdb_put_dup_async (FromEmulator* from)
+{
+  if (from->d->open)
+    {
+      tcbdbputdup (from->d->bdb,
+                   from->bdb_put_dup_async.kbuf,
+                   from->bdb_put_dup_async.ksiz,
+                   from->bdb_put_dup_async.vbuf,
+                   from->bdb_put_dup_async.vsiz);
+    }
+
+  make_reply_null (from);
+}
+
+static void
 init_handlers (handler* handlers)
 {
   handlers[EMULATOR_REQUEST_BDB_TUNE] = bdb_tune;
@@ -700,6 +715,7 @@ init_handlers (handler* handlers)
   handlers[EMULATOR_REQUEST_BDB_OUT_ASYNC] = bdb_out_async;
   handlers[EMULATOR_REQUEST_BDB_PUT_ASYNC] = bdb_put_async;
   handlers[EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC] = bdb_out_exact_async;
+  handlers[EMULATOR_REQUEST_BDB_PUT_DUP_ASYNC] = bdb_put_dup_async;
 }
 
 #ifdef __cplusplus
