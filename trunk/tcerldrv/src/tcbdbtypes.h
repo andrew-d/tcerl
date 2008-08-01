@@ -17,7 +17,7 @@ extern "C"
 static bool
 is_request_type (unsigned char type)
 {
-  return type <= EMULATOR_REQUEST_BDB_UPDATE_COUNTER;
+  return type <= EMULATOR_REQUEST_MAX;
 }
 
 struct _TcDriverData 
@@ -26,7 +26,7 @@ struct _TcDriverData
   ErlDrvPort    port;
   TCBDB*        bdb;
   BDBCUR*       cur;
-  handler       handlers[1 + EMULATOR_REQUEST_BDB_UPDATE_COUNTER];
+  handler       handlers[1 + EMULATOR_REQUEST_MAX];
   unsigned int  magic;
   unsigned int  open : 1;
   unsigned int  async_threads : 1;

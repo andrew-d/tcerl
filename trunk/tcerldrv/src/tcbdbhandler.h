@@ -588,6 +588,17 @@ bdb_update_counter (FromEmulator* from)
 }
 
 static void
+bdb_out_async   (FromEmulator* from)
+{
+  if (from->d->open)
+    {
+      tcbdbout3 (from->d->bdb, from->bdb_out.kbuf, from->bdb_out.ksiz);
+    }
+
+  make_reply_null (from);
+}
+
+static void
 init_handlers (handler* handlers)
 {
   handlers[EMULATOR_REQUEST_BDB_TUNE] = bdb_tune;
@@ -608,6 +619,7 @@ init_handlers (handler* handlers)
   handlers[EMULATOR_REQUEST_BDB_INFO] = bdb_info;
   handlers[EMULATOR_REQUEST_BDB_SYNC] = bdb_sync;
   handlers[EMULATOR_REQUEST_BDB_UPDATE_COUNTER] = bdb_update_counter;
+  handlers[EMULATOR_REQUEST_BDB_OUT_ASYNC] = bdb_out_async;
 }
 
 #ifdef __cplusplus

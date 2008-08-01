@@ -9,6 +9,7 @@ enum _ReplyType
   EMULATOR_REPLY_EMPTY_LIST = 3,
   EMULATOR_REPLY_STRING = 4,
   EMULATOR_REPLY_ERROR = 5,
+  EMULATOR_REPLY_NULL = 6,
 
   EMULATOR_REPLY_INVALID = 255
 };
@@ -89,6 +90,7 @@ to_emulator_destruct (ToEmulator to)
       case EMULATOR_REPLY_EMPTY_LIST:
       case EMULATOR_REPLY_STRING:
       case EMULATOR_REPLY_ERROR:
+      case EMULATOR_REPLY_NULL:
         break;
     }
 }
