@@ -6,6 +6,7 @@
 %%                        { external_copies, [ node () ] },
 %%                        { attributes, [ key, count ] },
 %%                        { user_properties, [ { deflate, true },
+%%                                             { async_write, true },
 %%                                             { bucket_array_size, 10000 } ] } ]),
 %% </pre><br/>
 %% Options to tcbdbets:open_file/1 are passed via user_properties.  Since
@@ -191,6 +192,7 @@ create_table (Tab, Cs, FileName) ->
   { _, Type, _ } = Cs#cstruct.type,
   UserProps = [ case X of { Foo, true } when Foo =:= uncompressed orelse
                                              Foo =:= deflate orelse
+                                             Foo =:= async_write orelse
                                              Foo =:= tcbs -> Foo;
                           _ -> X
                 end || X <- Cs#cstruct.user_properties ],
@@ -682,6 +684,43 @@ roundtrip_test_ () ->
       mnesia:create_table (testtab, 
                            [ { type, { external, ordered_set, ?MODULE } },
                              { external_copies, [ node () ] } ]),
+      testtab
+    end,
+    fun (_) ->
+      mnesia:stop (),
+      tcerl:stop (),
+      os:cmd ("rm -rf Mnesia.*")
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
+roundtrip_async_test_ () ->
+  F = fun (Tab) ->
+    T =
+      ?FORALL (X,
+               fun (_) -> { random_term (), random_term () } end,
+               (fun ({ Key, Value }) ->
+                  ok = mnesia:dirty_write ({ Tab, Key, Value }),
+                  [ { Tab, Key, Value } ] = mnesia:dirty_read ({ Tab, Key }),
+                  ok = mnesia:dirty_delete ({ Tab, Key }),
+                  [] = mnesia:dirty_read ({ Tab, Key }),
+                  true
+                end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      mnesia:stop (),
+      os:cmd ("rm -rf Mnesia.*"),
+      mnesia:start (),
+      mnesia:change_table_copy_type (schema, node (), disc_copies),
+      mnesia:create_table (testtab, 
+                           [ { type, { external, ordered_set, ?MODULE } },
+                             { external_copies, [ node () ] },
+                             { user_properties, [ { async_write, true } ] } ]),
       testtab
     end,
     fun (_) ->
