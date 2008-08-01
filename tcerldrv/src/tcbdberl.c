@@ -144,6 +144,7 @@ async_invoke (void* data)
       case EMULATOR_REQUEST_BDB_UPDATE_COUNTER:
       case EMULATOR_REQUEST_BDB_OUT_ASYNC:
       case EMULATOR_REQUEST_BDB_PUT_ASYNC:
+      case EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC:
         from->d->handlers[from->type] (from);
     }
 }

@@ -23,13 +23,14 @@ enum _RequestType
   EMULATOR_REQUEST_BDB_UPDATE_COUNTER = 17,
   EMULATOR_REQUEST_BDB_OUT_ASYNC = 18,
   EMULATOR_REQUEST_BDB_PUT_ASYNC = 19,
+  EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC = 20,
 
   EMULATOR_REQUEST_INVALID = 255
 };
 typedef enum _RequestType RequestType;
 typedef struct _FromEmulator FromEmulator;
 
-#define EMULATOR_REQUEST_MAX EMULATOR_REQUEST_BDB_PUT_ASYNC
+#define EMULATOR_REQUEST_MAX EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC
 
 #include "tcbdbcodec.h"
 #include "tcbdbto.h"
@@ -182,6 +183,14 @@ struct _FromEmulator
           void*         vbuf;
           int           vsiz;
         }                       bdb_put_async;
+
+      struct
+        {
+          void*         kbuf;
+          int           ksiz;
+          void*         vbuf;
+          int           vsiz;
+        }                       bdb_out_exact_async;
     };
 };
 
@@ -316,6 +325,14 @@ decode_from (TcDriverData*      d,
           case EMULATOR_REQUEST_BDB_PUT_ASYNC:
             DECODE_BINARY (from.bdb_put_async.ksiz, from.bdb_put_async.kbuf);
             DECODE_BINARY (from.bdb_put_async.vsiz, from.bdb_put_async.vbuf);
+
+            break;
+
+          case EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC:
+            DECODE_BINARY (from.bdb_out_exact_async.ksiz,
+                           from.bdb_out_exact_async.kbuf);
+            DECODE_BINARY (from.bdb_out_exact_async.vsiz,
+                           from.bdb_out_exact_async.vbuf);
 
             break;
 
@@ -494,6 +511,16 @@ from_emulator_dup (FromEmulator* from)
 
             break;
 
+          case EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC:
+            dup->bdb_out_exact_async.kbuf = 
+              my_memdup (from->bdb_out_exact_async.kbuf,
+                         from->bdb_out_exact_async.ksiz);
+            dup->bdb_out_exact_async.vbuf = 
+              my_memdup (from->bdb_out_exact_async.vbuf,
+                         from->bdb_out_exact_async.vsiz);
+
+            break;
+
           case EMULATOR_REQUEST_INVALID:
 
             break;
@@ -613,6 +640,12 @@ from_emulator_free (FromEmulator* dup)
           case EMULATOR_REQUEST_BDB_PUT_ASYNC:
             my_free (dup->bdb_put_async.kbuf);
             my_free (dup->bdb_put_async.vbuf);
+
+            break;
+
+          case EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC:
+            my_free (dup->bdb_out_exact_async.kbuf);
+            my_free (dup->bdb_out_exact_async.vbuf);
 
             break;
         }

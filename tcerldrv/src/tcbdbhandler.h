@@ -440,7 +440,9 @@ bdb_out_exact   (FromEmulator* from)
 {
   if (from->d->open)
     {
-      if (tcbdbcurjump (from->d->cur, from->bdb_next.kbuf, from->bdb_next.ksiz))
+      if (tcbdbcurjump (from->d->cur,
+                        from->bdb_out_exact.kbuf,
+                        from->bdb_out_exact.ksiz))
         {
           const void* kbuf;
           int ksiz;
@@ -614,6 +616,67 @@ bdb_put_async   (FromEmulator* from)
 }
 
 static void
+bdb_out_exact_async   (FromEmulator* from)
+{
+  if (from->d->open)
+    {
+      if (tcbdbcurjump (from->d->cur,
+                        from->bdb_out_exact_async.kbuf,
+                        from->bdb_out_exact_async.ksiz))
+        {
+          const void* kbuf;
+          int ksiz;
+
+          kbuf = tcbdbcurkey3 (from->d->cur, &ksiz);
+
+          while (   kbuf != NULL
+                 && from->d->bdb->cmp (from->bdb_out_exact_async.kbuf,
+                                       from->bdb_out_exact_async.ksiz,
+                                       kbuf,
+                                       ksiz,
+                                       from->d->bdb->cmpop) == 0)
+            {
+              const void* vbuf;
+              int vsiz;
+
+              vbuf = tcbdbcurval3 (from->d->cur, &vsiz);
+
+              if (   vbuf != NULL
+                  && from->d->bdb->cmp (from->bdb_out_exact_async.vbuf,
+                                        from->bdb_out_exact_async.vsiz,
+                                        vbuf,
+                                        vsiz,
+                                        from->d->bdb->cmpop) == 0)
+                {
+                  if (! tcbdbcurout (from->d->cur))
+                    {
+                      goto ERROR;
+                    }
+                }
+              else
+                {
+                  if (! tcbdbcurnext (from->d->cur))
+                    {
+                      goto OK;
+                    }
+                }
+
+              kbuf = tcbdbcurkey3 (from->d->cur, &ksiz);
+            }
+OK:
+          (void) 0;
+        }
+      else
+        {
+ERROR:
+          (void) 0;
+        }
+    }
+
+  make_reply_null (from);
+}
+
+static void
 init_handlers (handler* handlers)
 {
   handlers[EMULATOR_REQUEST_BDB_TUNE] = bdb_tune;
@@ -636,6 +699,7 @@ init_handlers (handler* handlers)
   handlers[EMULATOR_REQUEST_BDB_UPDATE_COUNTER] = bdb_update_counter;
   handlers[EMULATOR_REQUEST_BDB_OUT_ASYNC] = bdb_out_async;
   handlers[EMULATOR_REQUEST_BDB_PUT_ASYNC] = bdb_put_async;
+  handlers[EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC] = bdb_out_exact_async;
 }
 
 #ifdef __cplusplus
