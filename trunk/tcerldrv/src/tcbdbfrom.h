@@ -22,13 +22,14 @@ enum _RequestType
   EMULATOR_REQUEST_BDB_SYNC = 16,
   EMULATOR_REQUEST_BDB_UPDATE_COUNTER = 17,
   EMULATOR_REQUEST_BDB_OUT_ASYNC = 18,
+  EMULATOR_REQUEST_BDB_PUT_ASYNC = 19,
 
   EMULATOR_REQUEST_INVALID = 255
 };
 typedef enum _RequestType RequestType;
 typedef struct _FromEmulator FromEmulator;
 
-#define EMULATOR_REQUEST_MAX EMULATOR_REQUEST_BDB_OUT_ASYNC
+#define EMULATOR_REQUEST_MAX EMULATOR_REQUEST_BDB_PUT_ASYNC
 
 #include "tcbdbcodec.h"
 #include "tcbdbto.h"
@@ -173,6 +174,14 @@ struct _FromEmulator
           void*         kbuf;
           int           ksiz;
         }                       bdb_out_async;
+
+      struct
+        {
+          void*         kbuf;
+          int           ksiz;
+          void*         vbuf;
+          int           vsiz;
+        }                       bdb_put_async;
     };
 };
 
@@ -301,6 +310,12 @@ decode_from (TcDriverData*      d,
 
           case EMULATOR_REQUEST_BDB_OUT_ASYNC:
             DECODE_BINARY (from.bdb_out_async.ksiz, from.bdb_out_async.kbuf);
+
+            break;
+
+          case EMULATOR_REQUEST_BDB_PUT_ASYNC:
+            DECODE_BINARY (from.bdb_put_async.ksiz, from.bdb_put_async.kbuf);
+            DECODE_BINARY (from.bdb_put_async.vsiz, from.bdb_put_async.vbuf);
 
             break;
 
@@ -471,6 +486,14 @@ from_emulator_dup (FromEmulator* from)
 
             break;
 
+          case EMULATOR_REQUEST_BDB_PUT_ASYNC:
+            dup->bdb_put_async.kbuf = my_memdup (from->bdb_put_async.kbuf,
+                                                 from->bdb_put_async.ksiz);
+            dup->bdb_put_async.vbuf = my_memdup (from->bdb_put_async.vbuf,
+                                                 from->bdb_put_async.vsiz);
+
+            break;
+
           case EMULATOR_REQUEST_INVALID:
 
             break;
@@ -584,6 +607,12 @@ from_emulator_free (FromEmulator* dup)
 
           case EMULATOR_REQUEST_BDB_OUT_ASYNC:
             my_free (dup->bdb_out_async.kbuf);
+
+            break;
+
+          case EMULATOR_REQUEST_BDB_PUT_ASYNC:
+            my_free (dup->bdb_put_async.kbuf);
+            my_free (dup->bdb_put_async.vbuf);
 
             break;
         }
