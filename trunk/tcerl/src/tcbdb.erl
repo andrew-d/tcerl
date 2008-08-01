@@ -12,11 +12,15 @@
            open/2,
            next/2,
            out/2,
+           out_async/2,
            out_exact/3,
+           out_exact_async/3,
            prefix/3,
            prev/2,
            put/3,
+           put_async/3,
            put_dup/3,
+           put_dup_async/3,
            range/6,
            range_lb/4,
            range_ub/4,
@@ -48,6 +52,10 @@
 -define (BDB_INFO, 15).
 -define (BDB_SYNC, 16).
 -define (BDB_UPDATE_COUNTER, 17).
+-define (BDB_OUT_ASYNC, 18).
+-define (BDB_PUT_ASYNC, 19).
+-define (BDB_OUT_EXACT_ASYNC, 20).
+-define (BDB_PUT_DUP_ASYNC, 21).
 
 % well, not perfect, but iodata is a recursively defined datastructure
 % so can't be captured by a guard
@@ -275,6 +283,20 @@ out ({ tcerl, Port }, Key) when is_port (Port), ?is_iodata (Key) ->
     { Port, { data, Other } } -> { error, Other }
   end.
 
+%% @spec out_async (Tcerl::tcerl (), iodata ()) -> ok
+%% @doc Asynchronously delete all records associated with Key.  
+%% Returns immediately, and does not do error checking.
+%% Key is flattened to binary before lookup.
+%% Corresponds to tcbdbout3 ().
+%% @end
+
+out_async ({ tcerl, Port }, Key) when is_port (Port), ?is_iodata (Key) ->
+  KeySize = erlang:iolist_size (Key),
+  true = port_command (Port, [ <<?BDB_OUT_ASYNC:8>>, 
+                               <<KeySize:64/native-unsigned>>,
+                               Key ]),
+  ok.
+
 %% @spec out_exact (Tcerl::tcerl (), iodata (), iodata ()) -> ok | { error, Reason }
 %% @doc Delete all records associated with Key that compare equal to Value.
 %% Both Key and Value are flattened to binary before lookup.
@@ -297,6 +319,27 @@ out_exact ({ tcerl, Port }, Key, Value) when is_port (Port),
     { Port, { data, <<"no record found">> } } -> ok;
     { Port, { data, Other } } -> { error, Other }
   end.
+
+%% @spec out_exact_async (Tcerl::tcerl (), iodata (), iodata ()) -> ok
+%% @doc Asynchronously delete all records associated with Key that 
+%% compare equal to Value.
+%% Returns immediately, and does not do error checking.
+%% Both Key and Value are flattened to binary before lookup.
+%% Corresponds to tcbdbout3 () coupled with tcbdbcurjump () and 
+%% tcbdbcurnext ().
+%% @end
+
+out_exact_async ({ tcerl, Port }, Key, Value) when is_port (Port), 
+                                                   ?is_iodata (Key),
+                                                   ?is_iodata (Value) ->
+  KeySize = erlang:iolist_size (Key),
+  ValueSize = erlang:iolist_size (Value),
+  true = port_command (Port, [ <<?BDB_OUT_EXACT_ASYNC:8>>, 
+                               <<KeySize:64/native-unsigned>>,
+                               Key,
+                               <<ValueSize:64/native-unsigned>>,
+                               Value ]),
+  ok.
 
 %% @spec prefix (Tcerl::tcerl (), iodata (), integer ()) -> [ binary () ] | { error, Reason }
 %% @doc Retrieve keys which have Key as a prefix.
@@ -361,6 +404,26 @@ put ({ tcerl, Port }, Key, Value) when is_port (Port),
     { Port, { data, Other } } -> { error, Other }
   end.
 
+%% @spec put_async (Tcerl::tcerl (), iodata (), iodata ()) -> ok 
+%% @doc Asynchronously enter a key-value pair into the database.
+%% Returns immediately, and does not do error checking.
+%% Both Key and Value are flattened to binary before insertion.
+%% If a record exists for the key it will be replaced.  
+%% Corresponds to tcbdbput ().
+%% @end
+
+put_async ({ tcerl, Port }, Key, Value) when is_port (Port), 
+                                             ?is_iodata (Key),
+                                             ?is_iodata (Value) ->
+  KeySize = erlang:iolist_size (Key),
+  ValueSize = erlang:iolist_size (Value),
+  true = port_command (Port, [ <<?BDB_PUT_ASYNC:8>>, 
+                               <<KeySize:64/native-unsigned>>,
+                               Key,
+                               <<ValueSize:64/native-unsigned>>,
+                               Value ]),
+  ok.
+
 %% @spec put_dup (Tcerl::tcerl (), iodata (), iodata ()) -> ok | { error, Reason }
 %% @doc Enter a key-value pair into the database, allowing duplicate keys.
 %% Both Key and Value are flattened to binary before insertion.
@@ -381,6 +444,26 @@ put_dup ({ tcerl, Port }, Key, Value) when is_port (Port),
     { Port, { data, <<"ok">> } } -> ok;
     { Port, { data, Other } } -> { error, Other }
   end.
+
+%% @spec put_dup_async (Tcerl::tcerl (), iodata (), iodata ()) -> ok 
+%% @doc Asynchronously enter a key-value pair into the database, 
+%% allowing duplicate keys.
+%% Returns immediately, and does not do error checking.
+%% Both Key and Value are flattened to binary before insertion.
+%% Corresponds to tcbdbputdup ().
+%% @end
+
+put_dup_async ({ tcerl, Port }, Key, Value) when is_port (Port),
+                                                 ?is_iodata (Key),
+                                                 ?is_iodata (Value) ->
+  KeySize = erlang:iolist_size (Key),
+  ValueSize = erlang:iolist_size (Value),
+  true = port_command (Port, [ <<?BDB_PUT_DUP_ASYNC:8>>, 
+                               <<KeySize:64/native-unsigned>>,
+                               Key,
+                               <<ValueSize:64/native-unsigned>>,
+                               Value ]),
+  ok.
 
 %% @spec range (Tcerl::tcerl (), iodata (), bool (), iodata (), bool (), integer ()) -> [ binary () ] | { error, Reason }
 %% @doc Retrieve keys between Begin and End, optionally inclusive.
@@ -808,6 +891,60 @@ out_exact_test_ () ->
     { with, [ F ] }
   }.
 
+out_exact_async_test_ () ->
+  F = fun (R) ->
+    T = 
+      ?FORALL (X,
+               fun (_) -> { random_binary (), random_binary () } end,
+               (fun ({ Key, Value }) ->
+                  KeySize = erlang:size (Key),
+                  ValueSize = erlang:size (Value),
+
+                  ok = tcbdb:put (R, Key, Value),
+                  [ Value ] = tcbdb:get (R, Key),
+
+                  ok = tcbdb:put_dup (R, Key, <<Value:ValueSize/binary,
+                                                Value:ValueSize/binary>>),
+                  [ Value, <<Value:ValueSize/binary,
+                             Value:ValueSize/binary>> ] = tcbdb:get (R, Key),
+                  ok = tcbdb:put (R, Key, Value),
+                  [ Value, <<Value:ValueSize/binary,
+                             Value:ValueSize/binary>> ] = tcbdb:get (R, Key),
+                  ok = tcbdb:out_exact_async (R, <<Key:KeySize/binary,
+                                                   Key:KeySize/binary>>,
+                                              Value),
+                  [ Value, <<Value:ValueSize/binary,
+                             Value:ValueSize/binary>> ] = tcbdb:get (R, Key),
+                  ok = tcbdb:out_exact_async (R, Key, Value),
+                  [ <<Value:ValueSize/binary,
+                      Value:ValueSize/binary>> ] = tcbdb:get (R, Key),
+                  ok = tcbdb:out_exact_async (R, Key, <<Value:ValueSize/binary,
+                                                        0:8>>),
+                  [ <<Value:ValueSize/binary,
+                      Value:ValueSize/binary>> ] = tcbdb:get (R, Key),
+                  ok = tcbdb:out_exact_async (R, Key, <<Value:ValueSize/binary,
+                                                        Value:ValueSize/binary>>),
+                  [] = tcbdb:get (R, Key),
+                  true
+                end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      { ok, R } = tcbdb:open ("flass" ++ os:getpid (),
+                              [ create, truncate, writer ]),
+      R
+    end,
+    fun (_) ->
+      tcerl:stop (),
+      file:delete ("flass" ++ os:getpid ())
+    end,
+    { with, [ F ] }
+  }.
+
 put_dup_test_ () ->
   F = fun (R) ->
     T = 
@@ -852,6 +989,52 @@ put_dup_test_ () ->
     end,
     { with, [ F ] }
   }.
+
+put_dup_async_test_ () ->
+  F = fun (R) ->
+    T = 
+      ?FORALL (X,
+               fun (_) -> { random_binary (), random_binary () } end,
+               (fun ({ Key, Value }) ->
+                  ValueSize = erlang:size (Value),
+
+                  ok = tcbdb:put (R, Key, Value),
+                  [ Value ] = tcbdb:get (R, Key),
+
+                  ok = tcbdb:put_dup_async (R, Key, <<Value:ValueSize/binary,
+                                                      Value:ValueSize/binary>>),
+                  [ Value, <<Value:ValueSize/binary,
+                             Value:ValueSize/binary>> ] = tcbdb:get (R, Key),
+                  ok = tcbdb:put_dup_async (R, Key, Value),
+                  [ Value, 
+                    <<Value:ValueSize/binary,
+                      Value:ValueSize/binary>>,
+                    Value ] = tcbdb:get (R, Key),
+                  ok = tcbdb:out_exact (R, Key, Value),
+                  [ <<Value:ValueSize/binary,
+                      Value:ValueSize/binary>> ] = tcbdb:get (R, Key),
+                  ok = tcbdb:out (R, Key),
+                  [] = tcbdb:get (R, Key),
+                  true
+                end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      { ok, R } = tcbdb:open ("flass" ++ os:getpid (),
+                              [ create, truncate, writer ]),
+      R
+    end,
+    fun (_) ->
+      tcerl:stop (),
+      file:delete ("flass" ++ os:getpid ())
+    end,
+    { with, [ F ] }
+  }.
+
 
 prefix_test_ () ->
   F = fun ({ Tab, R }) ->
@@ -1132,6 +1315,37 @@ roundtrip_test_ () ->
                   ok = tcbdb:out (R, Key),
                   [] = tcbdb:get (R, Key),
                   ok = tcbdb:out (R, Key),
+                  true
+                end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      { ok, R } = tcbdb:open ("flass" ++ os:getpid (),
+                              [ create, truncate, writer ]),
+      R
+    end,
+    fun (_) ->
+      tcerl:stop (),
+      file:delete ("flass" ++ os:getpid ())
+    end,
+    { with, [ F ] }
+  }.
+
+roundtrip_async_test_ () ->
+  F = fun (R) ->
+    T = 
+      ?FORALL (X,
+               fun (_) -> { random_binary (), random_binary () } end,
+               (fun ({ Key, Value }) ->
+                  ok = tcbdb:put_async (R, Key, Value),
+                  [ Value ] = tcbdb:get (R, Key),
+                  ok = tcbdb:out_async (R, Key),
+                  [] = tcbdb:get (R, Key),
+                  ok = tcbdb:out_async (R, Key),
                   true
                 end) (X)),
 
