@@ -599,6 +599,21 @@ bdb_out_async   (FromEmulator* from)
 }
 
 static void
+bdb_put_async   (FromEmulator* from)
+{
+  if (from->d->open)
+    {
+      tcbdbput (from->d->bdb,
+                from->bdb_put.kbuf,
+                from->bdb_put.ksiz,
+                from->bdb_put.vbuf,
+                from->bdb_put.vsiz);
+    }
+
+  make_reply_null (from);
+}
+
+static void
 init_handlers (handler* handlers)
 {
   handlers[EMULATOR_REQUEST_BDB_TUNE] = bdb_tune;
@@ -620,6 +635,7 @@ init_handlers (handler* handlers)
   handlers[EMULATOR_REQUEST_BDB_SYNC] = bdb_sync;
   handlers[EMULATOR_REQUEST_BDB_UPDATE_COUNTER] = bdb_update_counter;
   handlers[EMULATOR_REQUEST_BDB_OUT_ASYNC] = bdb_out_async;
+  handlers[EMULATOR_REQUEST_BDB_PUT_ASYNC] = bdb_put_async;
 }
 
 #ifdef __cplusplus
