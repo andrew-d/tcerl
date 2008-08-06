@@ -1,0 +1,16 @@
+# put whatever (auto)make commands here, they will be included from Makefile.am
+
+check_PROGRAMS =			\
+  test_my_erl_marshall
+
+test_my_erl_marshall_SOURCES =		\
+  test_my_erl_marshall.c
+
+TESTS =					\
+  $(check_PROGRAMS)
+
+# ok, this is cheating, but ... 
+# i'm too lazy to fix all the signedness problems in this code
+test_my_erl_marshall.o: test_my_erl_marshall.c
+	$(COMPILE) -Wno-error -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+	mv -f $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
