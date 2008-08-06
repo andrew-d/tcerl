@@ -18,11 +18,42 @@ test_order_bug_zero ()
   assert (my_erl_compare_ext (term_two, term_three) < 0);
 }
 
+static void 
+test_order_bug_one ()
+{
+  unsigned char term_one[] = 
+    /*    -1 */
+    { 131,98,255,255,255,255 };
+
+  unsigned char term_two[] = 
+    /*    -1.00000e-2 */
+    { 131,70,191,132,122,225,71,174,20,123 };
+
+  assert (my_erl_compare_ext (term_one, term_two) < 0);
+  assert (my_erl_compare_ext (term_two, term_one) > 0);
+}
+
+static void
+test_order_bug_two () 
+{
+  unsigned char term_one[] = 
+    /* { -1, -1 } */
+    { 131,104,2,98,255,255,255,255,98,255,255,255,255 };
+  unsigned char term_two[] =
+    /* { -1.0, 0.5 } */
+    { 131,104,2,70,191,240,0,0,0,0,0,0,70,63,224,0,0,0,0,0,0 };
+
+  assert (my_erl_compare_ext (term_one, term_two) < 0);
+  assert (my_erl_compare_ext (term_two, term_one) > 0);
+}
+
 int 
 main ()
 {
   my_erl_init_marshal ();
 
+  test_order_bug_two ();
+  test_order_bug_one ();
   test_order_bug_zero ();
 
   return 0;
