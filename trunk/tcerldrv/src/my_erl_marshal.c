@@ -588,6 +588,62 @@ static int cmp_small_big(unsigned char**e1, unsigned char **e2)
     return res;
 }
 
+static double
+from_ieee_double_big_endian (const unsigned char *buf)
+{
+  int sign = (buf[0] & 0x80) ? -1 : 1;
+  uint32_t exponent;
+  uint64_t mantissa;
+
+  exponent = buf[0] & 0x7F;
+  exponent <<= 4;
+  exponent |= (buf[1] & 0xF0) >> 4;
+
+   if (exponent == 0) /* denormalized */
+     { 
+       exponent = -1022;
+       mantissa = 0;
+     }
+   else
+     { 
+       exponent -= 1023;
+       mantissa = 1;
+     }
+
+  mantissa <<= 4;
+  mantissa |= buf[1] & 0x0F;
+  mantissa <<= 8;
+  mantissa |= buf[2];
+  mantissa <<= 8;
+  mantissa |= buf[3];
+  mantissa <<= 8;
+  mantissa |= buf[4];
+  mantissa <<= 8;
+  mantissa |= buf[5];
+  mantissa <<= 8;
+  mantissa |= buf[6];
+  mantissa <<= 8;
+  mantissa |= buf[7];
+
+  return sign * ldexp (mantissa, exponent - 52);
+}
+
+static int
+my_ei_decode_double (unsigned char *e1, int *i1, double *f1)
+{
+  if (*e1 == ERL_NEW_FLOAT_EXT)
+    {
+      *i1 += 9;
+      *f1 = from_ieee_double_big_endian (e1 + 1);
+    }
+  else
+    {
+      if ( ei_decode_double(e1,i1,f1) < 0 ) return -1;
+    }
+
+  return 0;
+}
+
 static int cmp_small_float(unsigned char**e1, unsigned char **e2)
 {
     int i1,i2;
@@ -598,9 +654,12 @@ static int cmp_small_float(unsigned char**e1, unsigned char **e2)
 
     i1 = i2 = 0;
     if ( ei_decode_long(*e1,&i1,&l1) < 0 ) return -1;
-    if ( ei_decode_double(*e2,&i2,&f2) < 0 ) return 1;
-    
+    if ( my_ei_decode_double(*e2,&i2,&f2) < 0 ) return 1;
+
     f1 = to_float(l1);
+
+    *e1 += i1;
+    *e2 += i2;
 
     return cmp_floats(f1,f2);
 }
@@ -616,7 +675,7 @@ static int cmp_float_big(unsigned char**e1, unsigned char **e2)
     /* big -> float if overflow return big sign else float_comp */
     
     i1 = i2 = 0;
-    if ( ei_decode_double(*e1,&i1,&f1) < 0 ) return -1;
+    if ( my_ei_decode_double(*e1,&i1,&f1) < 0 ) return -1;
     
     if (ei_get_type(*e2,&i2,&t2,&n2) < 0) return 1;
     if ((b2 = ei_alloc_big(n2)) == NULL) return 1;
@@ -661,72 +720,14 @@ static int cmp_small_small(unsigned char**e1, unsigned char **e2)
     else return 0;
 }
 
-static double
-from_ieee_double_big_endian (const unsigned char *buf)
-{
-  int sign = (buf[0] & 0x80) ? -1 : 1;
-  uint32_t exponent;
-  uint64_t mantissa;
-
-  exponent = buf[0] & 0x7F;
-  exponent <<= 4;
-  exponent |= (buf[1] & 0xF0) >> 4;
-
-   if (exponent == 0) /* denormalized */
-     { 
-       exponent = -1022;
-       mantissa = 0;
-     }
-   else
-     { 
-       exponent -= 1023;
-       mantissa = 1;
-     }
-
-  mantissa <<= 4;
-  mantissa |= buf[1] & 0x0F;
-  mantissa <<= 8;
-  mantissa |= buf[2];
-  mantissa <<= 8;
-  mantissa |= buf[3];
-  mantissa <<= 8;
-  mantissa |= buf[4];
-  mantissa <<= 8;
-  mantissa |= buf[5];
-  mantissa <<= 8;
-  mantissa |= buf[6];
-  mantissa <<= 8;
-  mantissa |= buf[7];
-
-  return sign * ldexp (mantissa, exponent - 52);
-}
-
 static int cmp_float_float(unsigned char**e1, unsigned char **e2)
 {
     int i1,i2;
     double f1,f2;
 
-    if (**e1 == ERL_NEW_FLOAT_EXT)
-      {
-        i1 = 9;
-        f1 = from_ieee_double_big_endian (*e1 + 1);
-      }
-    else
-      {
-        i1 = 0;
-        if ( ei_decode_double(*e1,&i1,&f1) < 0 ) return -1;
-      }
-
-    if (**e2 == ERL_NEW_FLOAT_EXT)
-      {
-        i2 = 9;
-        f2 = from_ieee_double_big_endian (*e2 + 1);
-      }
-    else
-      {
-        i2 = 0;
-        if ( ei_decode_double(*e2,&i2,&f2) < 0 ) return 1;
-      }
+    i1 = i2 = 0;
+    if ( my_ei_decode_double(*e1,&i1,&f1) < 0 ) return -1;
+    if ( my_ei_decode_double(*e2,&i2,&f2) < 0 ) return -1;
 
     *e1 += i1;
     *e2 += i2;
