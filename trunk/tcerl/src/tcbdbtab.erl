@@ -759,6 +759,8 @@ roundtrip_async_test_ () ->
                     { lookup, _, _, 2 } ] = lists:sort (get_stats (Tab)),
                   ok = clear_stats (Tab),
                   [] = get_stats (Tab),
+                  ok = clear_stats (Tab),
+                  [] = get_stats (Tab),
                   true
                 end) (X)),
 
