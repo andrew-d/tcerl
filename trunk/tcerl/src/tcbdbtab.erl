@@ -18,6 +18,8 @@
 
 -module (tcbdbtab).
 
+-export ([ clear_stats/1,
+           get_stats/1 ]).
 -ifdef (HAVE_MNESIA_EXT).
 -behaviour (mnesia_ext).
 -endif.
@@ -56,29 +58,62 @@
                         (is_tuple (X) andalso
                          is_atom (element (1, X))))).
 
+-define (stat (What, X), (begin
+                          Start = now (),
+                          R = X,
+                          End = now (),
+                          update_stat (What, Tab, timer:now_diff (End, Start)),
+                          R
+                          end)).
+
+-define (stat_keys, [ info,
+                      lookup,
+                      insert,
+                      match_object,
+                      select,
+                      delete,
+                      match_delete,
+                      first,
+                      next,
+                      last,
+                      prev,
+                      update_counter ]).
+
 %-=====================================================================-
 %-                                Public                               -
 %-=====================================================================-
 
+clear_stats (Tab) when ?is_tabid (Tab) ->
+  lists:foreach (fun (X) -> mnesia_lib:unset ({ Tab, X, stats }) end,
+                 ?stat_keys).
+
+
+get_stats (Tab) when ?is_tabid (Tab) ->
+  [ { What, Max, Sum, Count } || What <- ?stat_keys,
+                                 { Max, Sum, Count } <- 
+                                   [ try mnesia_lib:val ({ Tab, What, stats })
+                                     catch _ : _ -> []
+                                     end ] ].
+
 %% @hidden
 
 info (Tab, What) when ?is_tabid (Tab) ->
-  tcbdbets:info (get_port (Tab), What).
+  ?stat (info, tcbdbets:info (get_port (Tab), What)).
 
 %% @hidden
 
 lookup (Tab, Key) when ?is_tabid (Tab) ->
-  tcbdbets:lookup (get_port (Tab), Key).
+  ?stat (lookup, tcbdbets:lookup (get_port (Tab), Key)).
 
 %% @hidden
 
 insert (Tab, Objects) when ?is_tabid (Tab) ->
-  tcbdbets:insert (get_port (Tab), Objects).
+  ?stat (insert, tcbdbets:insert (get_port (Tab), Objects)).
 
 %% @hidden
 
 match_object (Tab, Pattern) when ?is_tabid (Tab) ->
-  tcbdbets:match_object (get_port (Tab), Pattern).
+  ?stat (match_object, tcbdbets:match_object (get_port (Tab), Pattern)).
 
 %% @hidden
 
@@ -88,42 +123,42 @@ select (Cont) ->
 %% @hidden
 
 select (Tab, MatchSpec) when ?is_tabid (Tab) ->
-  tcbdbets:select (get_port (Tab), MatchSpec).
+  ?stat (select, tcbdbets:select (get_port (Tab), MatchSpec)).
 
 %% @hidden
 
 select (Tab, MatchSpec, Count) when ?is_tabid (Tab) ->
-  tcbdbets:select (get_port (Tab), MatchSpec, Count).
+  ?stat (select, tcbdbets:select (get_port (Tab), MatchSpec, Count)).
 
 %% @hidden
 
 delete (Tab, Key) when ?is_tabid (Tab) ->
-  tcbdbets:delete (get_port (Tab), Key).
+  ?stat (delete, tcbdbets:delete (get_port (Tab), Key)).
 
 %% @hidden
 
 match_delete (Tab, Pattern) when ?is_tabid (Tab) ->
-  tcbdbets:match_delete (get_port (Tab), Pattern).
+  ?stat (match_delete, tcbdbets:match_delete (get_port (Tab), Pattern)).
 
 %% @hidden
 
 first (Tab) when ?is_tabid (Tab) ->
-  tcbdbets:first (get_port (Tab)).
+  ?stat (first, tcbdbets:first (get_port (Tab))).
 
 %% @hidden
 
 next (Tab, Key) when ?is_tabid (Tab) ->
-  tcbdbets:next (get_port (Tab), Key).
+  ?stat (next, tcbdbets:next (get_port (Tab), Key)).
 
 %% @hidden
 
 last (Tab) when ?is_tabid (Tab) ->
-  tcbdbets:last (get_port (Tab)).
+  ?stat (last, tcbdbets:last (get_port (Tab))).
 
 %% @hidden
 
 prev (Tab, Key) when ?is_tabid (Tab) ->
-  tcbdbets:prev (get_port (Tab), Key).
+  ?stat (prev, tcbdbets:prev (get_port (Tab), Key)).
 
 %% @hidden
 
@@ -134,7 +169,7 @@ slot (Tab, _N) when ?is_tabid (Tab) ->
 %% @hidden
 
 update_counter (Tab, Key, Incr) when ?is_tabid (Tab) ->
-  tcbdbets:update_counter (get_port (Tab), Key, Incr).
+  ?stat (update_counter, tcbdbets:update_counter (get_port (Tab), Key, Incr)).
 
 %% @hidden
 
@@ -213,6 +248,21 @@ get_port (Tab) ->
       Cstruct = mnesia_lib:val ({ Tab, cstruct }),
       Tab = create_table (Tab, Cstruct),
       mnesia_lib:val ({ Tab, tcbdb_port })
+  end.
+
+max (A, B) when A > B -> A;
+max (_, B) -> B.
+
+update_stat (What, Tab, Micros) ->
+  try mnesia_lib:val ({ Tab, What, stats }) of
+    { Max, Sum, Count } ->
+      mnesia_lib:set ({ Tab, What, stats },
+                      { max (Max, Micros),
+                        Sum + Micros,
+                        Count + 1 })
+  catch
+    exit : { no_exists, { Tab, What, stats } } ->
+      mnesia_lib:set ({ Tab, What, stats }, { Micros, Micros, 1 })
   end.
 
 -ifdef (HAVE_EUNIT).
@@ -704,6 +754,11 @@ roundtrip_async_test_ () ->
                   [ { Tab, Key, Value } ] = mnesia:dirty_read ({ Tab, Key }),
                   ok = mnesia:dirty_delete ({ Tab, Key }),
                   [] = mnesia:dirty_read ({ Tab, Key }),
+                  [ { delete, _, _, _ },
+                    { insert, _, _, _ },
+                    { lookup, _, _, _ } ] = lists:sort (get_stats (Tab)),
+                  ok = clear_stats (Tab),
+                  [] = get_stats (Tab),
                   true
                 end) (X)),
 
