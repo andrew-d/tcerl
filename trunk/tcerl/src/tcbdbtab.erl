@@ -754,9 +754,9 @@ roundtrip_async_test_ () ->
                   [ { Tab, Key, Value } ] = mnesia:dirty_read ({ Tab, Key }),
                   ok = mnesia:dirty_delete ({ Tab, Key }),
                   [] = mnesia:dirty_read ({ Tab, Key }),
-                  [ { delete, _, _, _ },
-                    { insert, _, _, _ },
-                    { lookup, _, _, _ } ] = lists:sort (get_stats (Tab)),
+                  [ { delete, _, _, 1 },
+                    { insert, _, _, 1 },
+                    { lookup, _, _, 2 } ] = lists:sort (get_stats (Tab)),
                   ok = clear_stats (Tab),
                   [] = get_stats (Tab),
                   true
