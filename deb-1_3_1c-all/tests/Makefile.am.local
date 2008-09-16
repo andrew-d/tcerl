@@ -1,0 +1,4 @@
+TESTS = 		\
+  module-tcbdb		\
+  module-tcbdbets	\
+  module-tcbdbtab
