@@ -239,6 +239,7 @@ tcbdb_stop      (ErlDrvData      handle)
 
   if (d->open)
     {
+      d->open = 0;
       tcbdbclose (d->bdb);
     }
 
