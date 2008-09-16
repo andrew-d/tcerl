@@ -25,13 +25,14 @@ enum _RequestType
   EMULATOR_REQUEST_BDB_PUT_ASYNC = 19,
   EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC = 20,
   EMULATOR_REQUEST_BDB_PUT_DUP_ASYNC = 21,
+  EMULATOR_REQUEST_BDB_CLOSE_ASYNC = 22,
 
   EMULATOR_REQUEST_INVALID = 255
 };
 typedef enum _RequestType RequestType;
 typedef struct _FromEmulator FromEmulator;
 
-#define EMULATOR_REQUEST_MAX EMULATOR_REQUEST_BDB_PUT_DUP_ASYNC
+#define EMULATOR_REQUEST_MAX EMULATOR_REQUEST_BDB_CLOSE_ASYNC
 
 #include "tcbdbcodec.h"
 #include "tcbdbto.h"
@@ -353,6 +354,10 @@ decode_from (TcDriverData*      d,
 
             break;
 
+          case EMULATOR_REQUEST_BDB_CLOSE_ASYNC:
+
+            break;
+
           case EMULATOR_REQUEST_INVALID:
 
             break;
@@ -423,6 +428,7 @@ from_emulator_dup (FromEmulator* from)
             break;
 
           case EMULATOR_REQUEST_BDB_CLOSE:
+
             break;
 
           case EMULATOR_REQUEST_BDB_PUT:
@@ -545,6 +551,10 @@ from_emulator_dup (FromEmulator* from)
             dup->bdb_put_dup_async.vbuf = 
               my_memdup (from->bdb_put_dup_async.vbuf,
                          from->bdb_put_dup_async.vsiz);
+
+            break;
+
+          case EMULATOR_REQUEST_BDB_CLOSE_ASYNC:
 
             break;
 
@@ -679,6 +689,10 @@ from_emulator_free (FromEmulator* dup)
           case EMULATOR_REQUEST_BDB_PUT_DUP_ASYNC:
             my_free (dup->bdb_put_dup_async.kbuf);
             my_free (dup->bdb_put_dup_async.vbuf);
+
+            break;
+
+          case EMULATOR_REQUEST_BDB_CLOSE_ASYNC:
 
             break;
         }
