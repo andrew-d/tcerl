@@ -232,22 +232,23 @@ create_table (Tab, Cs, FileName) ->
                           _ -> X
                 end || X <- Cs#cstruct.user_properties ],
   File = filename:join ([ Dir, FileName ]),
-  { ok, Port } = tcbdbets:open_file ([ { access, read_write },
-                                       { file, File },
-                                       { keypos, 2 },
-                                       { type, Type } ] 
-                                     ++ UserProps),
-  tcbdbets:unlink (Port),
-  mnesia_lib:set ({ Tab, tcbdb_port }, Port),
+  { ok, _ } = tcbdbsrv:create_tab (Tab, 
+                                   [ { access, read_write },
+                                     { file, File },
+                                     { keypos, 2 },
+                                     { type, Type } ] 
+                                   ++ UserProps),
   Tab.
 
 get_port (Tab) ->
-  try mnesia_lib:val ({ Tab, tcbdb_port }) 
-  catch
-    exit : { no_exists, { Tab, tcbdb_port } } ->
+  case tcbdbsrv:get_tab (Tab) of
+    { ok, Port } -> 
+      Port;
+    unknown ->
       Cstruct = mnesia_lib:val ({ Tab, cstruct }),
       Tab = create_table (Tab, Cstruct),
-      mnesia_lib:val ({ Tab, tcbdb_port })
+      { ok, Port } = tcbdbsrv:get_tab (Tab),
+      Port
   end.
 
 max (A, B) when A > B -> A;
@@ -372,8 +373,6 @@ random_pattern (N) ->
 %-=====================================================================-
 %-                                Tests                                -
 %-=====================================================================-
-
-%flass (_File, _Line) -> ok.
 
 delete_test_ () ->
   F = fun (R) ->
