@@ -146,6 +146,7 @@ async_invoke (void* data)
       case EMULATOR_REQUEST_BDB_PUT_ASYNC:
       case EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC:
       case EMULATOR_REQUEST_BDB_PUT_DUP_ASYNC:
+      case EMULATOR_REQUEST_BDB_CLOSE_ASYNC:
         from->d->handlers[from->type] (from);
     }
 }
@@ -239,8 +240,18 @@ tcbdb_stop      (ErlDrvData      handle)
 
   if (d->open)
     {
-      d->open = 0;
-      tcbdbclose (d->bdb);
+      FromEmulator from;
+
+      from.type = EMULATOR_REQUEST_BDB_CLOSE_ASYNC;
+      from.d = d;
+
+      /* is this allowed here (?) */
+
+      driver_async (d->port,
+                    &d->magic,
+                    async_invoke,
+                    from_emulator_dup (&from),
+                    async_free);
     }
 
   data_unref (d);

@@ -692,6 +692,20 @@ bdb_put_dup_async (FromEmulator* from)
 }
 
 static void
+bdb_close_async (FromEmulator* from)
+{
+  if (from->d->open)
+    {
+      if (tcbdbclose (from->d->bdb))
+        {
+          from->d->open = 0;
+        }
+    }
+
+  make_reply_null (from);
+}
+
+static void
 init_handlers (handler* handlers)
 {
   handlers[EMULATOR_REQUEST_BDB_TUNE] = bdb_tune;
@@ -716,6 +730,7 @@ init_handlers (handler* handlers)
   handlers[EMULATOR_REQUEST_BDB_PUT_ASYNC] = bdb_put_async;
   handlers[EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC] = bdb_out_exact_async;
   handlers[EMULATOR_REQUEST_BDB_PUT_DUP_ASYNC] = bdb_put_dup_async;
+  handlers[EMULATOR_REQUEST_BDB_CLOSE_ASYNC] = bdb_close_async;
 }
 
 #ifdef __cplusplus
