@@ -1,7 +1,11 @@
 # put whatever (auto)make commands here, they will be included from Makefile.am
 
 check_PROGRAMS =			\
+  testbloom				\
   test_my_erl_marshall
+
+testbloom_SOURCES =			\
+  testbloom.c
 
 test_my_erl_marshall_SOURCES =		\
   test_my_erl_marshall.c
