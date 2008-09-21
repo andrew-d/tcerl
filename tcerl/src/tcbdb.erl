@@ -32,6 +32,7 @@
 
 -ifdef (HAVE_EUNIT).
 -include_lib ("eunit/include/eunit.hrl").
+-include_lib ("kernel/include/file.hrl").
 -endif.
 
 -define (BDB_TUNE, 0).
@@ -717,12 +718,30 @@ flasscheck (_, N, _, _) ->
 close_test_ () ->
   { setup,
     fun tcerl:start/0,
-    fun (_) -> tcerl:stop () end,
+    fun (_) -> 
+      file:delete ("flass" ++ os:getpid ()),
+      file:delete ("flass_bloom" ++ os:getpid ()),
+      tcerl:stop () 
+    end,
     fun () -> 
+      file:delete ("flass" ++ os:getpid ()),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       { ok, R } = tcbdb:open ("flass" ++ os:getpid (),
                               [ create, truncate, writer ]),
+      { ok, _ } = file:read_file_info ("flass" ++ os:getpid ()),
+      { error, enoent } = file:read_file_info ("flass_bloom" ++ os:getpid ()),
       ok = tcbdb:close (R),
-      file:delete ("flass" ++ os:getpid ())
+      { ok, R2 } = tcbdb:open ("flass" ++ os:getpid (),
+                               [ create, truncate, writer,
+                                 { bloom,
+                                   [ "flass_bloom", os:getpid () ],
+                                   1 bsl 20,
+                                   7 } ]),
+      { ok, _ } = file:read_file_info ("flass" ++ os:getpid ()),
+      { ok, Info } = file:read_file_info ("flass_bloom" ++ os:getpid ()),
+      true = Info#file_info.size =:= 1 bsl 20 + 10,
+      true = Info#file_info.access =:= read_write,
+      ok = tcbdb:close (R2)
     end }.
 
 first_test_ () ->
