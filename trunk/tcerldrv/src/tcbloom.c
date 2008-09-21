@@ -173,9 +173,12 @@ void
 tc_bloom_close (TcBloom* filter,
                 void   (*dealloc) (void*))
 {
-  munmap (filter->start, filter->num_bytes);
-  close (filter->fd);
-  dealloc (filter);
+  if (filter != NULL)
+    {
+      munmap (filter->start, filter->num_bytes);
+      close (filter->fd);
+      dealloc (filter);
+    }
 }
 
 int
@@ -183,25 +186,32 @@ tc_bloom_lookup (TcBloom*       filter,
                  const void*    p,
                  size_t         len)
 {
-  uint64_t i;
-  uint64_t x = djb2_hash (p, len, 5381);
-  uint64_t y = djb2_hash ((uint8_t*) "saltygoodness",
-                          sizeof ("saltygoodness"),
-                          x);
-  uint64_t num_bits = 8 * filter->num_bytes;
-
-  for (i = 0; i < filter->num_hashes; ++i)
+  if (filter != NULL)
     {
-      if (! get_bit (filter->start, x % num_bits))
+      uint64_t i;
+      uint64_t x = djb2_hash (p, len, 5381);
+      uint64_t y = djb2_hash ((uint8_t*) "saltygoodness",
+                              sizeof ("saltygoodness"),
+                              x);
+      uint64_t num_bits = 8 * filter->num_bytes;
+
+      for (i = 0; i < filter->num_hashes; ++i)
         {
-          return 0;
+          if (! get_bit (filter->start, x % num_bits))
+            {
+              return 0;
+            }
+
+          x = (x + y) % num_bits;
+          y = (y + i) % num_bits;
         }
 
-      x = (x + y) % num_bits;
-      y = (y + i) % num_bits;
+      return 1;
     }
-
-  return 1;
+  else
+    {
+      return 1;
+    }
 }
 
 void
@@ -209,18 +219,33 @@ tc_bloom_insert (TcBloom*       filter,
                  const void*    p,
                  size_t         len)
 {
-  uint64_t i;
-  uint64_t x = djb2_hash (p, len, 5381);
-  uint64_t y = djb2_hash ((uint8_t*) "saltygoodness",
-                          sizeof ("saltygoodness"),
-                          x);
-  uint64_t num_bits = 8 * filter->num_bytes;
-
-  for (i = 0; i < filter->num_hashes; ++i)
+  if (filter != NULL)
     {
-      set_bit (filter->start, x % num_bits);
+      uint64_t i;
+      uint64_t x = djb2_hash (p, len, 5381);
+      uint64_t y = djb2_hash ((uint8_t*) "saltygoodness",
+                              sizeof ("saltygoodness"),
+                              x);
+      uint64_t num_bits = 8 * filter->num_bytes;
 
-      x = (x + y) % num_bits;
-      y = (y + i) % num_bits;
+      for (i = 0; i < filter->num_hashes; ++i)
+        {
+          set_bit (filter->start, x % num_bits);
+
+          x = (x + y) % num_bits;
+          y = (y + i) % num_bits;
+        }
+    }
+}
+
+void
+tc_bloom_vanish (TcBloom*       filter)
+{
+  if (filter != NULL)
+    {
+      ftruncate (filter->fd, 0);
+      lseek (filter->fd, filter->num_bytes + 1, SEEK_SET);
+      write_64le (filter->fd, filter->num_bytes);
+      write (filter->fd, &filter->num_hashes, 1);
     }
 }
