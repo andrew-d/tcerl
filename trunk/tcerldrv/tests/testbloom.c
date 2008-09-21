@@ -31,7 +31,15 @@ test_bloom ()
   assert (tc_bloom_lookup (f, "turg", sizeof ("turg")));
   assert (! tc_bloom_lookup (f, "warez", sizeof ("warez")));
 
-  tc_bloom_vanish (f);
+  tc_bloom_close (f, free);
+  f = tc_bloom_open ("dild", malloc, O_RDONLY | O_TRUNC, 1ULL << 18, 5);
+
+  assert (tc_bloom_lookup (f, "flass", sizeof ("flass")));
+  assert (tc_bloom_lookup (f, "turg", sizeof ("turg")));
+  assert (! tc_bloom_lookup (f, "warez", sizeof ("warez")));
+
+  tc_bloom_close (f, free);
+  f = tc_bloom_open ("dild", malloc, O_RDWR | O_TRUNC, 1ULL << 18, 5);
 
   assert (! tc_bloom_lookup (f, "flass", sizeof ("flass")));
   assert (! tc_bloom_lookup (f, "turg", sizeof ("turg")));

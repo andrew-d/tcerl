@@ -15,6 +15,7 @@ struct _TcBloom
   uint64_t num_bytes;
   uint8_t  num_hashes;
   int      fd;
+  mode_t   mode;
 };
 
 /*=====================================================================*
@@ -109,7 +110,7 @@ tc_bloom_open (const char*       filename,
   uint8_t num_hashes;
   uint8_t* start;
 
-  fd = open (filename, mode & ~O_CREAT);
+  fd = open (filename, mode & ~O_CREAT & ~O_TRUNC);
 
   if (fd < 0)
     {
@@ -165,6 +166,12 @@ tc_bloom_open (const char*       filename,
   rv->num_bytes = num_bytes;
   rv->num_hashes = num_hashes;
   rv->fd = fd;
+  rv->mode = mode;
+
+  if ((mode & O_TRUNC) == O_TRUNC)
+    {
+      tc_bloom_vanish (rv);
+    }
 
   return rv;
 }
@@ -241,7 +248,8 @@ tc_bloom_insert (TcBloom*       filter,
 void
 tc_bloom_vanish (TcBloom*       filter)
 {
-  if (filter != NULL)
+  if (   filter != NULL
+      && (filter->mode & O_ACCMODE) == O_RDWR)
     {
       ftruncate (filter->fd, 0);
       lseek (filter->fd, filter->num_bytes + 1, SEEK_SET);
