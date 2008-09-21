@@ -45,6 +45,22 @@ extern "C"
     }                                                   \
   while (0)
 
+#define DECODE_BLOOM_OMODE(x)                           \
+  do                                                    \
+    {                                                   \
+      uint64_t _omode;                                  \
+                                                        \
+      DECODE_NATIVE_64_UNSIGNED (_omode);               \
+                                                        \
+      (x) = (_omode & 2) ? O_RDWR : O_RDONLY;           \
+      if (_omode & 2)                                   \
+        {                                               \
+          (x) |= (_omode & 4) ? O_CREAT : 0;            \
+          (x) |= (_omode & 8) ? O_TRUNC : 0;            \
+        }                                               \
+    }                                                   \
+  while (0)
+
 #define DECODE_NATIVE_64_SIGNED(x)              \
   do                                            \
     {                                           \

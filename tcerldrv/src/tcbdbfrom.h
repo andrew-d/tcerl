@@ -26,13 +26,14 @@ enum _RequestType
   EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC = 20,
   EMULATOR_REQUEST_BDB_PUT_DUP_ASYNC = 21,
   EMULATOR_REQUEST_BDB_CLOSE_ASYNC = 22,
+  EMULATOR_REQUEST_BDB_BLOOM_OPEN = 23,
 
   EMULATOR_REQUEST_INVALID = 255
 };
 typedef enum _RequestType RequestType;
 typedef struct _FromEmulator FromEmulator;
 
-#define EMULATOR_REQUEST_MAX EMULATOR_REQUEST_BDB_CLOSE_ASYNC
+#define EMULATOR_REQUEST_MAX EMULATOR_REQUEST_BDB_BLOOM_OPEN
 
 #include "tcbdbcodec.h"
 #include "tcbdbto.h"
@@ -201,6 +202,18 @@ struct _FromEmulator
           void*         vbuf;
           int           vsiz;
         }                       bdb_put_dup_async;
+
+      struct
+        {
+        }                       close_async;
+
+      struct
+        {
+          char*         path;
+          mode_t        omode;
+          uint64_t      num_bytes;
+          uint8_t       num_hashes;
+        }                       bdb_bloom_open;
     };
 };
 
@@ -355,6 +368,14 @@ decode_from (TcDriverData*      d,
             break;
 
           case EMULATOR_REQUEST_BDB_CLOSE_ASYNC:
+
+            break;
+
+          case EMULATOR_REQUEST_BDB_BLOOM_OPEN:
+            DECODE_STRING (from.bdb_bloom_open.path);
+            DECODE_BLOOM_OMODE (from.bdb_bloom_open.omode);
+            DECODE_NATIVE_64_UNSIGNED (from.bdb_bloom_open.num_bytes);
+            DECODE_BYTE (from.bdb_bloom_open.num_hashes);
 
             break;
 
@@ -558,6 +579,13 @@ from_emulator_dup (FromEmulator* from)
 
             break;
 
+          case EMULATOR_REQUEST_BDB_BLOOM_OPEN:
+            dup->bdb_bloom_open.path = 
+              my_memdup (from->bdb_bloom_open.path,
+                         1 + strlen (from->bdb_bloom_open.path));
+
+            break;
+
           case EMULATOR_REQUEST_INVALID:
 
             break;
@@ -695,6 +723,11 @@ from_emulator_free (FromEmulator* dup)
           case EMULATOR_REQUEST_BDB_CLOSE_ASYNC:
 
             break;
+
+          case EMULATOR_REQUEST_BDB_BLOOM_OPEN:
+            my_free (dup->bdb_bloom_open.path);
+
+            break;
         }
 
       to_emulator_destruct (dup->to);
@@ -723,6 +756,14 @@ make_reply_error  (FromEmulator* from,
 {
   from->to.type = EMULATOR_REPLY_ERROR;
   from->to.error.ecode = ecode;
+}
+
+static void
+make_reply_errnum  (FromEmulator* from,
+                    int           errnum)
+{
+  from->to.type = EMULATOR_REPLY_ERRNUM;
+  from->to.errnum.errnum = errnum;
 }
 
 static void

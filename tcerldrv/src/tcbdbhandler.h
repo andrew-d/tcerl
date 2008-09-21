@@ -2,6 +2,7 @@
 #define __TC_ERL_HANDLER_H_
 
 #include <erl_driver.h>
+#include <errno.h>
 #include <tcbdbupdatecounter.h>
 
 #ifdef __cplusplus
@@ -91,6 +92,9 @@ bdb_close        (FromEmulator* from)
     {
       make_reply_string (from, "not open");
     }
+
+  tc_bloom_close (from->d->filter, driver_free);
+  from->d->filter = NULL;
 }
 
 static void
@@ -105,6 +109,10 @@ bdb_put         (FromEmulator* from)
                     from->bdb_put.vsiz))
         {
           make_reply_string (from, "ok");
+
+          tc_bloom_insert (from->d->filter,
+                           from->bdb_put.kbuf,
+                           from->bdb_put.ksiz);
         }
       else
         {
@@ -129,6 +137,10 @@ bdb_put_dup     (FromEmulator* from)
                        from->bdb_put_dup.vsiz))
         {
           make_reply_string (from, "ok");
+
+          tc_bloom_insert (from->d->filter,
+                           from->bdb_put_dup.kbuf,
+                           from->bdb_put_dup.ksiz);
         }
       else
         {
@@ -166,51 +178,62 @@ bdb_get         (FromEmulator* from)
 {
   if (from->d->open)
     {
-      switch (tcbdbvnum (from->d->bdb, from->bdb_get.kbuf, from->bdb_get.ksiz)) 
+      if (tc_bloom_lookup (from->d->filter,
+                           from->bdb_get.kbuf,
+                           from->bdb_get.ksiz))
         {
-          case 0:
-            make_reply_empty_list (from);
-            break;
-
-          case 1:
+          switch (tcbdbvnum (from->d->bdb,
+                             from->bdb_get.kbuf,
+                             from->bdb_get.ksiz)) 
             {
-              const void *vbuf;
-              int vsiz;
+              case 0:
+                make_reply_empty_list (from);
+                break;
 
-              vbuf = tcbdbget3 (from->d->bdb,
-                                from->bdb_get.kbuf,
-                                from->bdb_get.ksiz,
-                                &vsiz);
+              case 1:
+                {
+                  const void *vbuf;
+                  int vsiz;
 
-              if (vbuf != NULL)
-                {
-                  make_reply_binary_singleton (from, vbuf, vsiz);
+                  vbuf = tcbdbget3 (from->d->bdb,
+                                    from->bdb_get.kbuf,
+                                    from->bdb_get.ksiz,
+                                    &vsiz);
+
+                  if (vbuf != NULL)
+                    {
+                      make_reply_binary_singleton (from, vbuf, vsiz);
+                    }
+                  else /* vbuf == NULL */
+                    {
+                      make_reply_empty_list (from);
+                    }
                 }
-              else /* vbuf == NULL */
+
+                break;
+
+              default:
                 {
-                  make_reply_empty_list (from);
+                  TCLIST* vals = tcbdbget4 (from->d->bdb,
+                                            from->bdb_get.kbuf,
+                                            from->bdb_get.ksiz);
+
+                  if (vals != NULL)
+                    {
+                      make_reply_binary_list (from, vals);
+                    }
+                  else /* vals == NULL */
+                    {
+                      make_reply_empty_list (from);
+                    }
                 }
+
+                break;
             }
-
-            break;
-
-          default:
-            {
-              TCLIST* vals = tcbdbget4 (from->d->bdb,
-                                        from->bdb_get.kbuf,
-                                        from->bdb_get.ksiz);
-
-              if (vals != NULL)
-                {
-                  make_reply_binary_list (from, vals);
-                }
-              else /* vals == NULL */
-                {
-                  make_reply_empty_list (from);
-                }
-            }
-
-            break;
+        }
+      else /* tc_bloom_lookup == 0 */
+        {
+          make_reply_empty_list (from);
         }
     }
   else
@@ -422,6 +445,8 @@ bdb_vanish       (FromEmulator* from)
     {
       if (tcbdbvanish (from->d->bdb))
         {
+          tc_bloom_vanish (from->d->filter);
+
           make_reply_string (from, "ok");
         }
       else
@@ -606,10 +631,14 @@ bdb_put_async   (FromEmulator* from)
   if (from->d->open)
     {
       tcbdbput (from->d->bdb,
-                from->bdb_put.kbuf,
-                from->bdb_put.ksiz,
-                from->bdb_put.vbuf,
-                from->bdb_put.vsiz);
+                from->bdb_put_async.kbuf,
+                from->bdb_put_async.ksiz,
+                from->bdb_put_async.vbuf,
+                from->bdb_put_async.vsiz);
+
+      tc_bloom_insert (from->d->filter,
+                       from->bdb_put_async.kbuf,
+                       from->bdb_put_async.ksiz);
     }
 
   make_reply_null (from);
@@ -686,6 +715,10 @@ bdb_put_dup_async (FromEmulator* from)
                    from->bdb_put_dup_async.ksiz,
                    from->bdb_put_dup_async.vbuf,
                    from->bdb_put_dup_async.vsiz);
+
+      tc_bloom_insert (from->d->filter,
+                       from->bdb_put_dup_async.kbuf,
+                       from->bdb_put_dup_async.ksiz);
     }
 
   make_reply_null (from);
@@ -702,7 +735,35 @@ bdb_close_async (FromEmulator* from)
         }
     }
 
+  tc_bloom_close (from->d->filter, driver_free);
+  from->d->filter = NULL;
+
   make_reply_null (from);
+}
+
+static void
+bdb_bloom_open  (FromEmulator* from)
+{
+  if (! from->d->filter)
+    {
+      from->d->filter = tc_bloom_open (from->bdb_bloom_open.path,
+                                       driver_alloc,
+                                       from->bdb_bloom_open.omode,
+                                       from->bdb_bloom_open.num_bytes,
+                                       from->bdb_bloom_open.num_hashes);
+      if (from->d->filter)
+        {
+          make_reply_string (from, "ok");
+        }
+      else
+        {
+          make_reply_errnum (from, errno);
+        }
+    }
+  else
+    {
+      make_reply_string (from, "already open");
+    }
 }
 
 static void
@@ -731,6 +792,7 @@ init_handlers (handler* handlers)
   handlers[EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC] = bdb_out_exact_async;
   handlers[EMULATOR_REQUEST_BDB_PUT_DUP_ASYNC] = bdb_put_dup_async;
   handlers[EMULATOR_REQUEST_BDB_CLOSE_ASYNC] = bdb_close_async;
+  handlers[EMULATOR_REQUEST_BDB_BLOOM_OPEN] = bdb_bloom_open;
 }
 
 #ifdef __cplusplus

@@ -10,6 +10,7 @@ enum _ReplyType
   EMULATOR_REPLY_STRING = 4,
   EMULATOR_REPLY_ERROR = 5,
   EMULATOR_REPLY_NULL = 6,
+  EMULATOR_REPLY_ERRNUM = 7,
 
   EMULATOR_REPLY_INVALID = 255
 };
@@ -61,6 +62,11 @@ struct _ToEmulator
         {
           int           ecode;
         }                       error;
+
+      struct
+        {
+          int           errnum;
+        }                       errnum;
     };
 };
 
@@ -91,6 +97,7 @@ to_emulator_destruct (ToEmulator to)
       case EMULATOR_REPLY_STRING:
       case EMULATOR_REPLY_ERROR:
       case EMULATOR_REPLY_NULL:
+      case EMULATOR_REPLY_ERRNUM:
         break;
     }
 }
