@@ -56,6 +56,8 @@
 -define (BDB_PUT_ASYNC, 19).
 -define (BDB_OUT_EXACT_ASYNC, 20).
 -define (BDB_PUT_DUP_ASYNC, 21).
+-define (BDB_CLOSE_ASYNC, 22). % not used
+-define (BDB_BLOOM_OPEN, 23). 
 
 % well, not perfect, but iodata is a recursively defined datastructure
 % so can't be captured by a guard
@@ -178,6 +180,7 @@ last ({ tcerl, Port }) when is_port (Port) ->
 %%                 { free_block_pool, integer () } |
 %%                 { leaf_node_cache, integer () } |
 %%                 { nonleaf_node_cache, integer () } |
+%%                 { bloom, Name::iodata (), Bytes::integer (), Hashes::integer () } |
 %%                 large | small | 
 %%                 uncompressed | deflate | tcbs | 
 %%                 nolock | lock_nonblocking | lock |
@@ -228,18 +231,43 @@ open (Name, Options) when ?is_iodata (Name),
 
   receive
     { Port, { data, <<"ok">> } } -> 
-      NameSize = 1 + erlang:iolist_size (Name),
-      true = port_command (Port, [ <<?BDB_OPEN:8>>,
-                                   <<NameSize:64/native-unsigned>>,
-                                   Name,
-                                   <<0:8>>,
-                                   <<OMode:64/native-unsigned>> ]),
-      receive
-        { Port, { data, <<"ok">> } } -> 
-          { ok, { tcerl, Port } };
-        { Port, { data, Other } } ->
-          port_close (Port),
-          { error, Other }
+      case
+        case lists:keysearch (bloom, 1, Opts) of
+          { value, { bloom, BloomName, BloomBytes, BloomHashes } } ->
+            BloomNameSize = 1 + erlang:iolist_size (BloomName),
+            true = port_command (Port, [ <<?BDB_BLOOM_OPEN:8>>,
+                                         <<BloomNameSize:64/native-unsigned>>,
+                                         BloomName,
+                                         <<0:8>>,
+                                         <<OMode:64/native-unsigned>>,
+                                         <<BloomBytes:64/native-unsigned>>,
+                                         <<BloomHashes:8>> ]),
+            receive
+              { Port, { data, <<"ok">> } } ->
+                ok;
+              { Port, { data, AnOther } } ->
+                port_close (Port),
+                { error, AnOther }
+            end;
+          false ->
+            ok
+        end of
+        ok ->
+          NameSize = 1 + erlang:iolist_size (Name),
+          true = port_command (Port, [ <<?BDB_OPEN:8>>,
+                                       <<NameSize:64/native-unsigned>>,
+                                       Name,
+                                       <<0:8>>,
+                                       <<OMode:64/native-unsigned>> ]),
+          receive
+            { Port, { data, <<"ok">> } } -> 
+              { ok, { tcerl, Port } };
+            { Port, { data, Other } } ->
+              port_close (Port),
+              { error, Other }
+          end;
+        R = { error, _Other } ->
+          R
       end;
     { Port, { data, Other } } ->
       port_close (Port),
@@ -846,6 +874,8 @@ out_exact_test_ () ->
                   KeySize = erlang:size (Key),
                   ValueSize = erlang:size (Value),
 
+                  [] = tcbdb:get (R, Key),
+
                   ok = tcbdb:put (R, Key, Value),
                   [ Value ] = tcbdb:get (R, Key),
 
@@ -881,11 +911,16 @@ out_exact_test_ () ->
     fun () -> 
       tcerl:start (),
       { ok, R } = tcbdb:open ("flass" ++ os:getpid (),
-                              [ create, truncate, writer ]),
+                              [ create, truncate, writer,
+                                { bloom,
+                                  [ "flass_bloom", os:getpid () ],
+                                  1 bsl 20,
+                                  7 } ]),
       R
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ())
     end,
     { with, [ F ] }
@@ -935,11 +970,16 @@ out_exact_async_test_ () ->
     fun () -> 
       tcerl:start (),
       { ok, R } = tcbdb:open ("flass" ++ os:getpid (),
-                              [ create, truncate, writer ]),
+                              [ create, truncate, writer,
+                                { bloom,
+                                  [ "flass_bloom", os:getpid () ],
+                                  1 bsl 20,
+                                  7 } ]),
       R
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ())
     end,
     { with, [ F ] }
@@ -953,6 +993,7 @@ put_dup_test_ () ->
                (fun ({ Key, Value }) ->
                   ValueSize = erlang:size (Value),
 
+                  [] = tcbdb:get (R, Key),
                   ok = tcbdb:put (R, Key, Value),
                   [ Value ] = tcbdb:get (R, Key),
 
@@ -980,11 +1021,16 @@ put_dup_test_ () ->
     fun () -> 
       tcerl:start (),
       { ok, R } = tcbdb:open ("flass" ++ os:getpid (),
-                              [ create, truncate, writer ]),
+                              [ create, truncate, writer,
+                                { bloom,
+                                  [ "flass_bloom", os:getpid () ],
+                                  1 bsl 20,
+                                  7 } ]),
       R
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ())
     end,
     { with, [ F ] }
@@ -998,6 +1044,7 @@ put_dup_async_test_ () ->
                (fun ({ Key, Value }) ->
                   ValueSize = erlang:size (Value),
 
+                  []  = tcbdb:get (R, Key),
                   ok = tcbdb:put (R, Key, Value),
                   [ Value ] = tcbdb:get (R, Key),
 
@@ -1025,11 +1072,16 @@ put_dup_async_test_ () ->
     fun () -> 
       tcerl:start (),
       { ok, R } = tcbdb:open ("flass" ++ os:getpid (),
-                              [ create, truncate, writer ]),
+                              [ create, truncate, writer,
+                                { bloom,
+                                  [ "flass_bloom", os:getpid () ],
+                                  1 bsl 20,
+                                  7 } ]),
       R
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ())
     end,
     { with, [ F ] }
@@ -1094,7 +1146,6 @@ prefix_test_ () ->
     end,
     { with, [ F ] }
   }.
-
 
 prev_test_ () ->
   F = fun ({ Tab, R }) ->
@@ -1310,6 +1361,7 @@ roundtrip_test_ () ->
       ?FORALL (X,
                fun (_) -> { random_binary (), random_binary () } end,
                (fun ({ Key, Value }) ->
+                  [] = tcbdb:get (R, Key),
                   ok = tcbdb:put (R, Key, Value),
                   [ Value ] = tcbdb:get (R, Key),
                   ok = tcbdb:out (R, Key),
@@ -1325,11 +1377,16 @@ roundtrip_test_ () ->
     fun () -> 
       tcerl:start (),
       { ok, R } = tcbdb:open ("flass" ++ os:getpid (),
-                              [ create, truncate, writer ]),
+                              [ create, truncate, writer,
+                                { bloom,
+                                  [ "flass_bloom", os:getpid () ],
+                                  1 bsl 20,
+                                  7 } ]),
       R
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ())
     end,
     { with, [ F ] }
@@ -1341,6 +1398,7 @@ roundtrip_async_test_ () ->
       ?FORALL (X,
                fun (_) -> { random_binary (), random_binary () } end,
                (fun ({ Key, Value }) ->
+                  [] = tcbdb:get (R, Key),
                   ok = tcbdb:put_async (R, Key, Value),
                   [ Value ] = tcbdb:get (R, Key),
                   ok = tcbdb:out_async (R, Key),
@@ -1356,11 +1414,16 @@ roundtrip_async_test_ () ->
     fun () -> 
       tcerl:start (),
       { ok, R } = tcbdb:open ("flass" ++ os:getpid (),
-                              [ create, truncate, writer ]),
+                              [ create, truncate, writer,
+                                { bloom,
+                                  [ "flass_bloom", os:getpid () ],
+                                  1 bsl 20,
+                                  7 } ]),
       R
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ())
     end,
     { with, [ F ] }
@@ -1425,11 +1488,16 @@ vanish_test_ () ->
     fun () -> 
       tcerl:start (),
       { ok, R } = tcbdb:open ("flass" ++ os:getpid (),
-                              [ create, truncate, writer ]),
+                              [ create, truncate, writer,
+                                { bloom,
+                                  [ "flass_bloom", os:getpid () ],
+                                  1 bsl 20,
+                                  7 } ]),
       R
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ())
     end,
     { with, [ F ] }
