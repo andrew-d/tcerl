@@ -9,7 +9,8 @@ libtcbdberl_la_SOURCES = 	\
   my_decode_skip.c		\
   my_erl_marshal.c		\
   tcbdberl.c			\
-  tcbdbupdatecounter.c
+  tcbdbupdatecounter.c		\
+  tcbloom.c
 
 libtcbdberl_la_LIBADD = 	\
   @FW_PKGCONFIG_PREREQS_LIBS@	\
