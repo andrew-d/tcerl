@@ -6,6 +6,11 @@
 
 typedef struct _TcBloom TcBloom;
 
+#ifdef __cplusplus
+extern "C"
+    {
+#endif
+
 TcBloom*
 tc_bloom_open (const char*       filename,
                void*           (*alloc) (size_t),
@@ -27,5 +32,12 @@ void
 tc_bloom_insert (TcBloom*       filter,
                  const void*    p,
                  size_t         len);
+
+void
+tc_bloom_vanish (TcBloom*       filter);
+
+#ifdef __cplusplus
+    }
+#endif
 
 #endif /* __TC_BLOOM_H_ */
