@@ -7,13 +7,16 @@
 %%                        { attributes, [ key, count ] },
 %%                        { user_properties, [ { deflate, true },
 %%                                             { async_write, true },
-%%                                             { bucket_array_size, 10000 } ] } ]),
+%%                                             { bucket_array_size, 10000 },
+%%                                             { bloom, 1 bsl 20, 7 } ] } ]),
 %% </pre><br/>
 %% Options to tcbdbets:open_file/1 are passed via user_properties.  Since
 %% user_properties must contain tuples, the non-tuple options to 
 %% tcbdbets:open_file/1 are indicated via { Arg, true } tuples, e.g.,
 %% in the above example the { deflate, true } tuple activates the 
-%% deflate option to tcbdbets:open_file/1.
+%% deflate option to tcbdbets:open_file/1.  Unlike 
+%% tcbdbets:open_file/1, the bloom option does not take a filename 
+%% as this is computed from the table name.
 %% @end
 
 -module (tcbdbtab).
@@ -224,14 +227,16 @@ init_table (Tab, InitFun, _Sender) when ?is_tabid (Tab) ->
 
 create_table (Tab, Cs, FileName) ->
   Dir = mnesia_lib:val (dir),
+  File = filename:join ([ Dir, FileName ]),
   { _, Type, _ } = Cs#cstruct.type,
   UserProps = [ case X of { Foo, true } when Foo =:= uncompressed orelse
                                              Foo =:= deflate orelse
                                              Foo =:= async_write orelse
                                              Foo =:= tcbs -> Foo;
+                          { bloom, Bytes, Hashes } ->
+                            { bloom, [ File, "_bloom" ], Bytes, Hashes };
                           _ -> X
                 end || X <- Cs#cstruct.user_properties ],
-  File = filename:join ([ Dir, FileName ]),
   { ok, _ } = tcbdbsrv:create_tab (Tab, 
                                    [ { access, read_write },
                                      { file, File },
@@ -459,7 +464,6 @@ delete_object_test_ () ->
     end,
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
   }.
-
 
 first_test_ () ->
   F = fun ({ Tab, R }) ->
@@ -709,6 +713,10 @@ prev_test_ () ->
 
 roundtrip_test_ () ->
   F = fun (Tab) ->
+    Dir = mnesia_lib:val (dir),
+    BloomFile = filename:join ([ Dir, atom_to_list (Tab) ++ ".tcb_bloom" ]),
+    { ok, _ } = file:read_file_info (BloomFile),
+
     T =
       ?FORALL (X,
                fun (_) -> { random_term (), random_term () } end,
@@ -732,7 +740,8 @@ roundtrip_test_ () ->
       mnesia:change_table_copy_type (schema, node (), disc_copies),
       mnesia:create_table (testtab, 
                            [ { type, { external, ordered_set, ?MODULE } },
-                             { external_copies, [ node () ] } ]),
+                             { external_copies, [ node () ] },
+                             { user_properties, [ { bloom, 1 bsl 20, 7 } ] } ]),
       testtab
     end,
     fun (_) ->
