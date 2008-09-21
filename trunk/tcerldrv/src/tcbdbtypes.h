@@ -26,6 +26,7 @@ struct _TcDriverData
   ErlDrvPort    port;
   TCBDB*        bdb;
   BDBCUR*       cur;
+  TcBloom*      filter;
   handler       handlers[1 + EMULATOR_REQUEST_MAX];
   unsigned int  magic;
   unsigned int  open : 1;

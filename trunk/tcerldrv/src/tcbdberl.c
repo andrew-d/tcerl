@@ -6,13 +6,16 @@
 #include <execinfo.h>
 #endif
 #include <erl_driver.h>
-#include <tcutil.h>
-#include <tcbdb.h>
+#include <fcntl.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <tcbdb.h>
+#include <tcutil.h>
+
+#include "tcbloom.h"
 
 #include "tcbdbfrom.h"
 #include "tcbdbto.h"
@@ -147,6 +150,7 @@ async_invoke (void* data)
       case EMULATOR_REQUEST_BDB_OUT_EXACT_ASYNC:
       case EMULATOR_REQUEST_BDB_PUT_DUP_ASYNC:
       case EMULATOR_REQUEST_BDB_CLOSE_ASYNC:
+      case EMULATOR_REQUEST_BDB_BLOOM_OPEN:
         from->d->handlers[from->type] (from);
     }
 }
@@ -202,6 +206,14 @@ async_free (void* data)
       case EMULATOR_REPLY_NULL:
 
         break;
+
+      case EMULATOR_REPLY_ERRNUM:
+        reply_string (from->d->port,
+                      from->caller,
+                      strerror (from->to.errnum.errnum));
+
+        break;
+
     }
 
   from_emulator_free (from);
