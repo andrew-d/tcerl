@@ -246,6 +246,15 @@ tc_bloom_insert (TcBloom*       filter,
 }
 
 void
+tc_bloom_sync (TcBloom*       filter)
+{
+  if (filter != NULL)
+    {
+      msync (filter->start, filter->num_bytes, MS_ASYNC);
+    }
+}
+
+void
 tc_bloom_vanish (TcBloom*       filter)
 {
   if (   filter != NULL

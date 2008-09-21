@@ -34,6 +34,9 @@ tc_bloom_insert (TcBloom*       filter,
                  size_t         len);
 
 void
+tc_bloom_sync   (TcBloom*       filter);
+
+void
 tc_bloom_vanish (TcBloom*       filter);
 
 #ifdef __cplusplus
