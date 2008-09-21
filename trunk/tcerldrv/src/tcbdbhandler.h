@@ -551,6 +551,8 @@ bdb_sync         (FromEmulator* from)
         {
           make_reply_error (from, tcbdbecode (from->d->bdb));
         }
+
+      tc_bloom_sync (from->d->filter);
     }
   else
     {
