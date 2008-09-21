@@ -643,6 +643,7 @@ prev (TcBdbEts = #tcbdbets{}, Key) ->
 %%            { free_block_pool, integer () } |
 %%            { leaf_node_cache, integer () } |
 %%            { nonleaf_node_cache, integer () } |
+%%            { bloom, Name::iodata (), Bytes::integer (), Hashes::integer () } |
 %%            async_write |
 %%            uncompressed | deflate | tcbs 
 %% @doc Opens a table. An empty table is created if no file exists.
@@ -1536,12 +1537,18 @@ delete_all_objects_test_ () ->
   { setup,
     fun () -> 
       tcerl:start (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid ()} ]),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
+                                        { bloom,
+                                          [ "flass_bloom", os:getpid () ],
+                                          1 bsl 20,
+                                          7 } ]),
       R
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ())
     end,
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
@@ -1594,12 +1601,18 @@ delete_object_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
+                                        { bloom,
+                                          [ "flass_bloom", os:getpid () ],
+                                          1 bsl 20,
+                                          7 },
                                         { type, ordered_duplicate_bag } ]),
       R
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ())
     end,
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
@@ -1652,13 +1665,19 @@ delete_object_async_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
+                                        { bloom,
+                                          [ "flass_bloom", os:getpid () ],
+                                          1 bsl 20,
+                                          7 },
                                         { type, ordered_duplicate_bag },
                                         async_write ]),
       R
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ())
     end,
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
@@ -1889,14 +1908,26 @@ init_table_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("turg" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
-      { ok, D } = tcbdbets:open_file ([ { file, "turg" ++ os:getpid () }]),
+      file:delete ("turg_bloom" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
+                                        { bloom,
+                                          [ "flass_bloom", os:getpid () ],
+                                          1 bsl 20,
+                                          7 } ]),
+      { ok, D } = tcbdbets:open_file ([ { file, "turg" ++ os:getpid () },
+                                        { bloom,
+                                          [ "turg_bloom", os:getpid () ],
+                                          1 bsl 20,
+                                          7 } ]),
       { R, D }
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ()),
+      file:delete ("turg_bloom" ++ os:getpid ()),
       file:delete ("turg" ++ os:getpid ())
     end,
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
@@ -2184,11 +2215,17 @@ roundtrip_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
+      file:delete ("flass_bloom" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
+                                        { bloom,
+                                          [ "flass_bloom", os:getpid () ],
+                                          1 bsl 20,
+                                          7 } ]),
       R
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ())
     end,
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
@@ -2221,12 +2258,18 @@ roundtrip_async_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
+                                        { bloom,
+                                          [ "flass_bloom", os:getpid () ],
+                                          1 bsl 20,
+                                          7 },
                                         async_write ]),
       R
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ())
     end,
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
@@ -2390,11 +2433,17 @@ sync_test_ () ->
     fun () -> 
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
+      file:delete ("flass_bloom" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
+                                        { bloom,
+                                          [ "flass_bloom", os:getpid () ],
+                                          1 bsl 20,
+                                          7 } ]),
       R
     end,
     fun (_) ->
       tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
       file:delete ("flass" ++ os:getpid ())
     end,
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
