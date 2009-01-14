@@ -1,0 +1,26 @@
+# put whatever (auto)make commands here, they will be included from Makefile.am
+
+INCLUDES += @TOKYOCABINET_CFLAGS@
+
+lib_LTLIBRARIES =		\
+  libtcbdberl.la
+
+libtcbdberl_la_SOURCES = 	\
+  my_decode_skip.c		\
+  my_erl_marshal.c		\
+  tcbdberl.c			\
+  tcbdbupdatecounter.c		\
+  tcbloom.c
+
+libtcbdberl_la_LIBADD = 	\
+  @FW_PKGCONFIG_PREREQS_LIBS@	\
+  @TOKYOCABINET_LIBS@
+
+libtcbdberl_la_LDFLAGS = 	\
+  -module -avoid-version
+
+# ok, this is cheating, but ... 
+# i'm too lazy to fix all the signedness problems in this code
+my_erl_marshal.lo: my_erl_marshal.c
+	$(LTCOMPILE) -Wno-error -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+	mv -f $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Plo
