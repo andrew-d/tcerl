@@ -1,7 +1,7 @@
 # put whatever (auto)make commands here, they will be included from Makefile.am
 
 ERLCFLAGS = $(FW_ERLCFLAGS) @MNESIA_EXT@
-DIALYZERFLAGS = @MNESIA_EXT@
+DIALYZERFLAGS += @MNESIA_EXT@
 
 dist_erlappsrc_DATA = 		\
   $(wildcard *.erl)

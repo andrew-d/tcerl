@@ -1,3 +1,6 @@
+Version 1.3.1e [ NOT YET RELEASED ]
+  * DIALYZERFLAGS +=
+
 Version 1.3.1d
   * optional bloom filter support
 
