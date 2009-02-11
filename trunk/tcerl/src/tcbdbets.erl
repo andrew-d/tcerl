@@ -1381,9 +1381,7 @@ traverse (Function, Acc, [], Last, TcBdbEts) when is_binary (Last) ->
       end;
     R = { error, _Reason } ->
       R
-  end;
-traverse (_Function, _Acc, _Objects, R = { error, _Reason }, _TcBdbEts) ->
-  R.
+  end.
 
 % try_delete_objects
 
