@@ -1,4 +1,4 @@
-Version 1.3.1e [ NOT YET RELEASED ]
+Version 1.3.1e
   * DIALYZERFLAGS +=
   * route table deletes through tcbdbsrv to ensure state is always correct
   * dialyzer pointed out an unneccesary function clause, removed
