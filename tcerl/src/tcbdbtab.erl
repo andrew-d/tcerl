@@ -189,10 +189,8 @@ create_table (T = { Tab, Name }, Cs) when is_atom (Tab) -> % checkpoint retainer
 %% @hidden
 
 delete_table (Tab) when ?is_tabid (Tab) ->
-  Port = get_port (Tab),
-  FileName = tcbdbets:info (Port, filename),
-  tcbdbets:close (Port),
-  file:delete (FileName).
+  tcbdbsrv:delete_tab (Tab),
+  ok.
 
 % TODO: indices
 
@@ -415,55 +413,57 @@ delete_test_ () ->
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
   }.
 
-delete_object_test_ () ->
-  F = fun ({ Tab, R }) ->
-    T = 
-      ?FORALL (X,
-               fun (_) -> 
-                { random_term (), random_term (), random_pattern (2) }
-               end,
-               (fun ({ Key, Value, Pattern }) ->
-                  RPattern = list_to_tuple ([ R | tuple_to_list (Pattern) ]),
-                  TabPattern = list_to_tuple ([ Tab | tuple_to_list (Pattern) ]),
-                  ok = mnesia:dirty_delete_object (RPattern),
-                  ok = mnesia:dirty_delete_object (TabPattern),
-
-                  RConts = mnesia:dirty_match_object ({ R, '_', '_' }),
-                  TabConts = mnesia:dirty_match_object ({ Tab, '_', '_' }),
-                  TabFix = [ { R, K, V } || { _, K, V } <- TabConts ],
-                  RConts = TabFix,
-
-                  ok = mnesia:dirty_write ({ R, Key, Value }),
-                  ok = mnesia:dirty_write ({ Tab, Key, Value }),
-
-                  true
-                end) (X)),
-
-    ok = flasscheck (1000, 10, T)
-  end,
-
-  { setup,
-    fun () -> 
-      tcerl:start (),
-      mnesia:stop (),
-      os:cmd ("rm -rf Mnesia.*"),
-      mnesia:start (),
-      mnesia:change_table_copy_type (schema, node (), disc_copies),
-      mnesia:create_table (testtab, 
-                           [ { type, { external, ordered_set, ?MODULE } },
-                             { external_copies, [ node () ] } ]),
-      mnesia:create_table (etstab, 
-                           [ { type, ordered_set },
-                             { ram_copies, [ node () ] } ]),
-      { etstab, testtab }
-    end,
-    fun (_) ->
-      mnesia:stop (),
-      tcerl:stop (),
-      os:cmd ("rm -rf Mnesia.*")
-    end,
-    fun (X) -> { timeout, 60, fun () -> F (X) end } end
-  }.
+% todo: this test fails in R12 because mnesia guards against 
+% variables in delete_object (also, this test doesn't make sense)
+% delete_object_test_ () ->
+%   F = fun ({ Tab, R }) ->
+%     T = 
+%       ?FORALL (X,
+%                fun (_) -> 
+%                 { random_term (), random_term (), random_pattern (2) }
+%                end,
+%                (fun ({ Key, Value, Pattern }) ->
+%                   RPattern = list_to_tuple ([ R | tuple_to_list (Pattern) ]),
+%                   TabPattern = list_to_tuple ([ Tab | tuple_to_list (Pattern) ]),
+%                   ok = mnesia:dirty_delete_object (RPattern),
+%                   ok = mnesia:dirty_delete_object (TabPattern),
+% 
+%                   RConts = mnesia:dirty_match_object ({ R, '_', '_' }),
+%                   TabConts = mnesia:dirty_match_object ({ Tab, '_', '_' }),
+%                   TabFix = [ { R, K, V } || { _, K, V } <- TabConts ],
+%                   RConts = TabFix,
+% 
+%                   ok = mnesia:dirty_write ({ R, Key, Value }),
+%                   ok = mnesia:dirty_write ({ Tab, Key, Value }),
+% 
+%                   true
+%                 end) (X)),
+% 
+%     ok = flasscheck (1000, 10, T)
+%   end,
+% 
+%   { setup,
+%     fun () -> 
+%       tcerl:start (),
+%       mnesia:stop (),
+%       os:cmd ("rm -rf Mnesia.*"),
+%       mnesia:start (),
+%       mnesia:change_table_copy_type (schema, node (), disc_copies),
+%       mnesia:create_table (testtab, 
+%                            [ { type, { external, ordered_set, ?MODULE } },
+%                              { external_copies, [ node () ] } ]),
+%       mnesia:create_table (etstab, 
+%                            [ { type, ordered_set },
+%                              { ram_copies, [ node () ] } ]),
+%       { etstab, testtab }
+%     end,
+%     fun (_) ->
+%       mnesia:stop (),
+%       tcerl:stop (),
+%       os:cmd ("rm -rf Mnesia.*")
+%     end,
+%     fun (X) -> { timeout, 60, fun () -> F (X) end } end
+%   }.
 
 first_test_ () ->
   F = fun ({ Tab, R }) ->

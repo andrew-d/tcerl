@@ -2,6 +2,7 @@
 
 -module (tcbdbsrv).
 -export ([ create_tab/2,
+           delete_tab/1,
            get_tab/1,
            start_link/0 ]).
 
@@ -24,6 +25,9 @@
 
 create_tab (Id, OpenSpec) ->
   gen_server:call (?MODULE, { create_tab, Id, OpenSpec }).
+
+delete_tab (Id) ->
+  gen_server:call (?MODULE, { delete_tab, Id }).
 
 get_tab (Id) ->
   gen_server:call (?MODULE, { get_tab, Id }).
@@ -48,6 +52,16 @@ init ([]) ->
 
   { ok, #statev2{ tabs = dict:new () } }.
 
+handle_call ({ delete_tab, Id }, _From, State = #statev2{ tabs = Tabs }) ->
+  case dict:find (Id, Tabs) of
+    { ok, Port } -> 
+      FileName = tcbdbets:info (Port, filename),
+      tcbdbets:close (Port),
+      file:delete (FileName),
+      { reply, ok, State#statev2{ tabs = dict:erase (Id, Tabs) } };
+    error ->
+      { reply, unknown, State }
+  end;
 handle_call ({ get_tab, Id }, _From, State = #statev2{ tabs = Tabs }) ->
   case dict:find (Id, Tabs) of
     { ok, Value } -> 
