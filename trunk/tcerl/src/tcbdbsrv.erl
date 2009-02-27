@@ -24,13 +24,13 @@
 %-=====================================================================-
 
 create_tab (Id, OpenSpec) ->
-  gen_server:call (?MODULE, { create_tab, Id, OpenSpec }).
+  gen_server:call (?MODULE, { create_tab, Id, OpenSpec }, 30000).
 
 delete_tab (Id) ->
-  gen_server:call (?MODULE, { delete_tab, Id }).
+  gen_server:call (?MODULE, { delete_tab, Id }, 30000).
 
 get_tab (Id) ->
-  gen_server:call (?MODULE, { get_tab, Id }).
+  gen_server:call (?MODULE, { get_tab, Id }, 30000).
 
 start_link () ->
   gen_server:start_link ({ local, ?MODULE }, ?MODULE, [], []).
