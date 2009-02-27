@@ -1,0 +1,15 @@
+dnl -- include additional autoconf commands here
+dnl -- do not include AC_OUTPUT, this is called for you
+
+FW_TEMPLATE_ERLANG_CHECK_MODULE([mnesia_ext],
+                                [MNESIA_EXT="-DHAVE_MNESIA_EXT=1"],
+                                [MNESIA_EXT=""])
+
+FW_SUBST_PROTECT([MNESIA_EXT])
+
+if test "$MNESIA_EXT" = "-DHAVE_MNESIA_EXT=1"
+  then
+    AC_MSG_NOTICE([mnesia storage api extensions detected])
+  fi
+
+AM_CONDITIONAL([HAVE_MNESIA_EXT], [test "$MNESIA_EXT" = "-DHAVE_MNESIA_EXT=1"])
