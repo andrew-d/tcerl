@@ -9,6 +9,10 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
+#ifndef MAP_POPULATE
+#define MAP_POPULATE 0
+#endif
+
 struct _TcBloom 
 {
   uint8_t* start;
