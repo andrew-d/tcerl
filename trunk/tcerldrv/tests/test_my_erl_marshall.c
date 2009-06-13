@@ -47,11 +47,25 @@ test_order_bug_two ()
   assert (my_erl_compare_ext (term_two, term_one) > 0);
 }
 
+static void
+test_issue_four ()
+{
+  unsigned char term_one[] = 
+    /* 9999999999 */
+    { 131,110,5,0,255,227,11,84,2 };
+  unsigned char term_two [] = 
+    /* 9999999999 */
+    { 131,110,5,0,255,227,11,84,2 };
+
+  assert (my_erl_compare_ext (term_one, term_two) == 0);
+}
+
 int 
 main ()
 {
   my_erl_init_marshal ();
 
+  test_issue_four ();
   test_order_bug_two ();
   test_order_bug_one ();
   test_order_bug_zero ();
