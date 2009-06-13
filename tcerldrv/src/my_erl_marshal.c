@@ -144,6 +144,56 @@ void my_erl_init_marshal(void)
   }
 }
 
+/*
+ * broken in erlang, incorporating patch from here
+ * hat tip to Paul Guyot <pguyot@kallisys.net>
+ * http://erlang.org/pipermail/erlang-bugs/2008-October/001023.html
+ */
+
+static int my_ei_decode_big(const char *buf, int *index, erlang_big *b)
+{
+  long digit_bytes;
+  const char *s = buf + *index;
+  const char *s0 = s;
+
+  switch ( get8(s) ) {
+    case ERL_SMALL_BIG_EXT:
+      digit_bytes = get8(s);
+      break;
+    case ERL_LARGE_BIG_EXT:
+      digit_bytes = get32be(s);
+      break;
+    default:
+      return -1;
+  }
+  if ( b ) {
+      unsigned short *dt = b->digits;
+      int i;
+      unsigned char *u;
+
+      if ( ((digit_bytes+1)/2) != b->arity ) {
+          return -1;
+      }
+      b->is_neg = get8(s);
+      u = (unsigned char *) s;
+      for (i = 0; i < b->arity; ++i) {
+	  dt[i] = u[i*2];
+          if ((i*2 + 1) < digit_bytes)
+            {
+              dt[i] |= ((unsigned short) u[(i*2)+1]) << 8;
+            }
+      }
+  } else {
+      s++; /* skip sign byte */
+  }
+
+  s += digit_bytes;
+
+  *index += s-s0; 
+  
+  return 0; 
+}
+
 /*==============================================================
  * Marshalling routines.
  *==============================================================
@@ -571,7 +621,7 @@ static int cmp_small_big(unsigned char**e1, unsigned char **e2)
         return 1;
     }
 
-    if ( ei_decode_big(*e2,&i2,b2) < 0 ) {
+    if ( my_ei_decode_big(*e2,&i2,b2) < 0 ) {
         ei_free_big(b1);
         ei_free_big(b2);
         return 1;
@@ -679,7 +729,7 @@ static int cmp_float_big(unsigned char**e1, unsigned char **e2)
     
     if (ei_get_type(*e2,&i2,&t2,&n2) < 0) return 1;
     if ((b2 = ei_alloc_big(n2)) == NULL) return 1;
-    if (ei_decode_big(*e2,&i2,b2) < 0) return 1;
+    if (my_ei_decode_big(*e2,&i2,b2) < 0) return 1;
     
     /* convert the big to float */
     if ( ei_big_to_double(b2,&f2) < 0 ) {
@@ -746,13 +796,13 @@ static int cmp_big_big(unsigned char**e1, unsigned char **e2)
     i1 = i2 = 0;
     ei_get_type(*e1,&i1,&t1,&n1);
     ei_get_type(*e2,&i2,&t2,&n2);
-    
+
     b1 = ei_alloc_big(n1);
     b2 = ei_alloc_big(n2);
     
-    ei_decode_big(*e1,&i1,b1);
-    ei_decode_big(*e2,&i2,b2);
-    
+    my_ei_decode_big(*e1,&i1,b1);
+    my_ei_decode_big(*e2,&i2,b2);
+
     res = ei_big_comp(b1,b2);
     
     ei_free_big(b1);
@@ -842,13 +892,13 @@ static int compare_top_ext(unsigned char**e1, unsigned char **e2)
 
   if (**e1 == ERL_SMALLEST || **e2 == ERL_LARGEST)
     {
-      fprintf (stderr, "wtf %hhu %hhu!\n", **e1, **e2);
+      fprintf (stderr, "wtf %hhu %hhu!\r\n", **e1, **e2);
       return -1;
     }
 
   if (**e2 == ERL_SMALLEST || **e1 == ERL_LARGEST)
     {
-      fprintf (stderr, "wtf %hhu %hhu!\n", **e1, **e2);
+      fprintf (stderr, "wtf %hhu %hhu!\r\n", **e1, **e2);
       return 1;
     }
 
