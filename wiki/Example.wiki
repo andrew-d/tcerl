@@ -27,7 +27,7 @@ ordered_set
 [{testtab,hello,world}]
 7> f (), Start = now (), [ mnesia:dirty_write ({ testtab, N, N }) || N <- lists:seq (1, 100000) ], End = now (), timer:now_diff (End, Start).
 5590639
-8> {ok, Port} = tcbdbsrv:get_tab(testtab), tcbdbets:sync(Port). 
+8> {ok, Port} = tcbdbsrv:get_tab (testtab), tcbdbets:sync (Port). 
 ok
 9>              
 User switch command
