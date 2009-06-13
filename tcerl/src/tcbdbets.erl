@@ -2186,6 +2186,62 @@ prev_test_ () ->
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
   }.
 
+roundtrip_issue4_test_ () ->
+  F = fun (R) ->
+    true = 
+      lists:foldl (
+        fun (Key, Acc) ->
+          try
+            Value = random:uniform (),
+            ok = tcbdbets:insert (R, { Key, Value }),
+            [ { Key, Value } ] = tcbdbets:lookup (R, Key),
+            false = tcbdbets:insert_new (R, { Key, Value }),
+            [ { Key, Value } ] = tcbdbets:lookup (R, Key),
+            true = tcbdbets:member (R, Key),
+            ok = tcbdbets:delete (R, Key),
+            true = tcbdbets:insert_new (R, { Key, Value }),
+            [ { Key, Value } ] = tcbdbets:lookup (R, Key),
+            ok = tcbdbets:delete (R, Key),
+            [] = tcbdbets:lookup (R, Key),
+            false = tcbdbets:member (R, Key),
+            ok = tcbdbets:delete (R, Key),
+            Acc
+          catch
+            A : B -> 
+              error_logger:error_msg ("FAIL ~p:~p ~p~n", [ A, B, Key ]), 
+              false
+          end
+        end,
+        true,
+        [ 1,
+          4294967298,
+          4294967299,
+          9999999999,
+          1099511627775,
+          1099511627776,
+          100000000000000000000000000000000 ])
+  end,
+
+  { setup,
+    fun () -> 
+      tcerl:start (),
+      file:delete ("flass" ++ os:getpid ()),
+      file:delete ("flass_bloom" ++ os:getpid ()),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () },
+                                        { bloom,
+                                          [ "flass_bloom", os:getpid () ],
+                                          1 bsl 20,
+                                          7 } ]),
+      R
+    end,
+    fun (_) ->
+      tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
+      file:delete ("flass" ++ os:getpid ())
+    end,
+    fun (X) -> { timeout, 60, fun () -> F (X) end } end
+  }.
+
 roundtrip_test_ () ->
   F = fun (R) ->
     T = 
