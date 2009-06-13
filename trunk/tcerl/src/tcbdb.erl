@@ -1374,6 +1374,55 @@ range_ub_test_ () ->
     { with, [ F ] }
   }.
 
+roundtrip_issue4_test_ () ->
+  F = fun (R) ->
+    true = 
+      lists:foldl (
+        fun (X, Acc) ->
+          try
+            Key = erlang:term_to_binary (X, [ { minor_version, 1 } ]),
+            Value = erlang:term_to_binary ({ X, random:uniform () },
+                                           [ { minor_version, 1 } ]),
+            [] = tcbdb:get (R, Key),
+            ok = tcbdb:put (R, Key, Value),
+            [ Value ] = tcbdb:get (R, Key),
+            ok = tcbdb:out (R, Key),
+            [] = tcbdb:get (R, Key),
+            ok = tcbdb:out (R, Key),
+            Acc
+          catch
+            A : B -> 
+              error_logger:error_msg ("FAIL ~p:~p ~p~n", [ A, B, X ]), 
+              false
+          end
+        end,
+        true,
+        [ 1,
+          4294967298,
+          4294967299,
+          9999999999,
+          1099511627775,
+          1099511627776,
+          100000000000000000000000000000000 ])
+    end,
+
+  { setup,
+    fun () -> 
+      file:delete ("flass" ++ os:getpid ()),
+      file:delete ("flass_bloom" ++ os:getpid ()),
+      tcerl:start (),
+      { ok, R } = tcbdb:open ("flass" ++ os:getpid (),
+                              [ term_store, create, truncate, writer ]),
+      R
+    end,
+    fun (_) ->
+      tcerl:stop (),
+      file:delete ("flass_bloom" ++ os:getpid ()),
+      file:delete ("flass" ++ os:getpid ())
+    end,
+    { with, [ F ] }
+  }.
+
 roundtrip_test_ () ->
   F = fun (R) ->
     T = 
