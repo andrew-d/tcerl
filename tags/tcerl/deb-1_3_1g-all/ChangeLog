@@ -1,0 +1,48 @@
+Version 1.3.1g
+  * Fix Issue 4 (Bug with reads - can't read some int keys)
+
+Version 1.3.1f
+  * increase gen_server call timeout to mitigate create_tab call
+
+Version 1.3.1e
+  * DIALYZERFLAGS +=
+  * route table deletes through tcbdbsrv to ensure state is always correct
+  * dialyzer pointed out an unneccesary function clause, removed
+
+Version 1.3.1d
+  * optional bloom filter support
+
+Version 1.3.1c
+  * fix mnesia shutdown difficulties (unclean and/or deadlock main emulator thread)
+
+Version 1.3.1b
+  * timing stats
+
+Version 1.3.1a
+  * async update operations
+
+Version 1.3.1 
+  * corresponds to tcerldrv 1.3.1
+  * optimize global select_delete (and match_delete)
+
+Version 1.2.5f
+  * non-deadlocking async thread support (tcerldrv change only)
+
+Version 1.2.5e
+  * add async thread support (tcerldrv change only, just syncing version nums)
+
+Version 1.2.5d
+  * add test for select bug (now fixed, at the tcerldrv level)
+
+Version 1.2.5c
+  * fix analyze_matchspec bug
+
+Version 1.2.5b
+  * "default sandwich" fix
+  * atomic update counter
+
+Version 1.2.5a 
+  * added mnesia storage api support
+
+Version 1.2.5
+  * corresponds to tcerldrv 1.2.5
