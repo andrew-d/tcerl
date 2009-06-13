@@ -2,7 +2,7 @@
 # environment variable FW_PACKAGE_DEFAULT_MAINTAINER if non-empty
 
 FW_PACKAGE_NAME="tcerldrv"
-FW_PACKAGE_VERSION="1.3.1e"
+FW_PACKAGE_VERSION="1.3.1g"
 FW_PACKAGE_MAINTAINER="Paul Mineiro <paul-fw@mineiro.com>"
 FW_PACKAGE_SHORT_DESCRIPTION="Erlang C driver for tokyocabinet."
 FW_PACKAGE_DESCRIPTION=`cat README`
@@ -20,7 +20,7 @@ FW_PACKAGE_PROVIDES=""
 FW_PACKAGE_REPLACES=""
 FW_PACKAGE_SUGGESTS=""
 
-FW_PACKAGE_BUILD_DEPENDS="tokyocabinet, erlang-dev [!darwin-i386], erlang-otp [darwin-i386], erlang-src [!darwin-i386]"
+FW_PACKAGE_BUILD_DEPENDS="tokyocabinet, erlang-dev [!darwin-i386], erlang-otp [darwin-i386], erlang-src [!darwin-i386], libbz2-dev [!darwin-i386]"
 FW_PACKAGE_BUILD_CONFLICTS=""
 
 FW_SUBVERSION_TAG_ROOT="https://tcerl.googlecode.com/svn/tags/tcerldrv"
