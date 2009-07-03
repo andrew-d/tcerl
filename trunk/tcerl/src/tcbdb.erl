@@ -631,7 +631,7 @@ unlink ({ tcerl, Port }) when is_port (Port) ->
 %% @doc Remove all records.  Corresponds to tcbdbvanish ().
 %% @end
 
-vanish ({ tcerl, Port }) ->
+vanish ({ tcerl, Port }) when is_port (Port) ->
   true = port_command (Port, <<?BDB_VANISH:8>>),
   receive
     { Port, { data, <<"ok">> } } -> ok;
