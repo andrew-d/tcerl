@@ -13,3 +13,5 @@ As a really crappy workaround you can manually sync a database foo via
 {{{
 tcbdbets:sync (element (2, tcbdbsrv:get_tab (foo)))
 }}}
+
+If you have a consulting budget and need a better fix, don't hesitate to [mailto:paul@mineiro.com contact me].
