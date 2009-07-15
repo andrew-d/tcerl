@@ -61,6 +61,7 @@
                         (is_tuple (X) andalso
                          is_atom (element (1, X))))).
 
+-ifdef (KEEP_STATS).
 -define (stat (What, X), (begin
                           Start = now (),
                           R = X,
@@ -68,6 +69,9 @@
                           update_stat (What, Tab, timer:now_diff (End, Start)),
                           R
                           end)).
+-else.
+-define (stat (What, X), (X)).
+-endif.
 
 -define (stat_keys, [ info,
                       lookup,
@@ -254,6 +258,7 @@ get_port (Tab) ->
       Port
   end.
 
+-ifdef (KEEP_STATS).
 max (A, B) when A > B -> A;
 max (_, B) -> B.
 
@@ -268,6 +273,7 @@ update_stat (What, Tab, Micros) ->
     exit : { no_exists, { Tab, What, stats } } ->
       mnesia_lib:set ({ Tab, What, stats }, { Micros, Micros, 1 })
   end.
+-endif.
 
 -ifdef (HAVE_EUNIT).
 -ifdef (HAVE_MNESIA_EXT).
