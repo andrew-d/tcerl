@@ -148,11 +148,11 @@ analyze_keypos_elements ([ H | T ], Bindings, Acc) ->
 analyze_op_arguments (A, B) ->
   case { is_match_variable (A), is_constant_expression (B) } of
     { true, true } ->
-      { A, term_to_extended_term (B) };
+      { A, match_condition_to_extended_term (B) };
     _ ->
       case { is_match_variable (B), is_constant_expression (A) } of
         { true, true } ->
-          { B, term_to_extended_term (A) };
+          { B, match_condition_to_extended_term (A) };
         _ ->
           false
       end
@@ -302,6 +302,21 @@ is_match_variable (Atom) when is_atom (Atom) ->
 is_match_variable (_) ->
   false.
 
+-spec match_condition_to_extended_term (condition_expression ()) -> extended_term ().
+
+match_condition_to_extended_term (X) when is_tuple (X),
+                                          size (X) =:= 1,
+                                          is_tuple (element (1, X)) ->
+  { tuple, match_condition_to_extended_term (tuple_to_list (element (1, X))) };
+match_condition_to_extended_term ({ const, X }) when is_tuple (X) ->
+  { tuple, [ { literal, Y } || Y <- tuple_to_list (X) ] };
+match_condition_to_extended_term ({ const, X }) when is_list (X) ->
+  [ { literal, Y } || Y <- X ];
+match_condition_to_extended_term (X) when is_list (X) ->
+  [ match_condition_to_extended_term (Y) || Y <- X ];
+match_condition_to_extended_term (X) ->
+  { literal, X }.
+
 -spec merge_interval (interval (), [ interval () ]) -> [ interval () ].
 
 merge_interval (none, Acc) ->
@@ -336,12 +351,3 @@ overlap ({ interval, A, B }, { interval, C, D }) ->
   end;
 overlap (_, _) ->
   false.
-
--spec term_to_extended_term (any ()) -> extended_term ().
-
-term_to_extended_term (X) when is_list (X) -> 
-  [ term_to_extended_term (Y) || Y <- X ];
-term_to_extended_term (X) when is_tuple (X) -> 
-  { tuple, term_to_extended_term (tuple_to_list (X)) };
-term_to_extended_term (X) ->
-  { literal, X }.
