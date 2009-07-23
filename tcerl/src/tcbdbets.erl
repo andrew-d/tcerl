@@ -400,6 +400,7 @@ insert (TcBdbEts = #tcbdbets{ keypos = KeyPos },
 %% @end
 
 %% TODO: this could be made faster at the driver layer ...
+%% TODO: this is not atomic
 
 insert_new (_TcBdbEts = #tcbdbets{ access = read }, _Object) ->
   { error, read_only };
@@ -942,108 +943,39 @@ update_counter (TcBdbEts = #tcbdbets{ keypos = KeyPos, type = ordered_set },
 % to query
 
 analyze_matchspec (MatchSpec, KeyPos) ->
-  interval_union ([ analyze_matchfun (M, KeyPos) || M <- MatchSpec ]).
+  [ render_interval (I) || I <- tcbdbmsutil:analyze (MatchSpec, KeyPos) ].
 
-%% TODO: analyze guard to constrain range of keys applicable
-analyze_matchfun ({ Pattern, _Guard, _Result }, KeyPos) 
-  when is_tuple (Pattern),
-       size (Pattern) >= KeyPos ->
-  analyze_pattern (element (KeyPos, Pattern));
-analyze_matchfun ({ Pattern, _Guard, _Result }, _KeyPos) when is_atom (Pattern) ->
-  case is_variable (Pattern) of
-    true -> analyze_pattern (Pattern);
-    false -> []
-  end;
-analyze_matchfun (_MatchSpec, _KeyPos) -> 
-  [].
-
-analyze_pattern (Pattern) ->
-  case analyze_pattern_complete (Pattern, [ <<131>> ]) of
-    { complete, RevExact } -> 
-      Exact = lists:reverse (RevExact),
-      { Exact, Exact };
-    { partial, RevSmallest, RevLargest } -> 
-      { lists:reverse (RevSmallest), lists:reverse (RevLargest) }
-  end.
-
-% analyze_pattern_complete
-%
-% the idea here is to walk the pattern until we encounter a variable,
-% then replace the variable with ERL_SMALLEST and ERL_LARGEST and stop.
-% 
-% if we don't find a variable, we just end up computing 
-% erlang:term_to_binary/1, except more slowly :)
-
-% tuples ... output header and recurse on elements
-
-analyze_pattern_complete (Pattern, Acc) when is_tuple (Pattern) ->
+render_extended_term (smallest) -> <<0>>;
+render_extended_term (largest) -> <<255>>;
+render_extended_term (X) when is_list (X) -> 
+  Length = erlang:length (X),
+  Initial = <<108, Length:32/big-unsigned>>,
+  render_extended_term_list (X, true, [ Initial ]);
+render_extended_term ({ tuple, X }) ->
   Initial = 
-    case size (Pattern) of
+    case erlang:length (X) of
       N when N < 256 ->
-        [ <<104, N:8/unsigned>> ];
+        <<104, N:8/unsigned>>;
       N ->
-        [ <<105, N:32/big-unsigned>> ]
+        <<105, N:32/big-unsigned>>
     end,
+  render_extended_term_list (X, false, [ Initial ]);
+render_extended_term ({ literal, X }) ->
+  <<131, Rest/binary>> = erlang:term_to_binary (X, [ { minor_version, 1 } ]),
+  Rest.
 
-  analyze_pattern_complete_elements (tuple_to_list (Pattern),
-                                     false,
-                                     [ Initial | Acc ]);
+render_extended_term_list ([], true, Acc) ->
+  [ <<106>>, Acc ];
+render_extended_term_list ([], false, Acc) ->
+  Acc;
+render_extended_term_list ([ H | T ], NilTerminated, Acc) ->
+  render_extended_term_list (T, 
+                             NilTerminated, 
+                             [ render_extended_term (H) | Acc ]).
 
-% empty list ... terminate complete
-analyze_pattern_complete ([], Acc) ->
-  { complete, [ <<106>> | Acc ] };
-
-% non-empty list ... output header and recurse on elements
-
-analyze_pattern_complete (Pattern, Acc) when is_list (Pattern) ->
-  Length = erlang:length (Pattern),
-  analyze_pattern_complete_elements (Pattern,
-                                     true,
-                                     [ <<108:8, 
-                                         Length:32/big-unsigned>> 
-                                       | Acc ]);
-
-% empty atom ... terminate complete
-analyze_pattern_complete ('', Acc) ->
-  { complete, [ <<100,0,0>> | Acc ] };
-
-% wildcard variable ... terminate partial
-analyze_pattern_complete ('_', Acc) ->
-  { partial, [ <<0>> | Acc ], [ <<255>> | Acc ] };
-
-% atom ... terminate; if variable, partial, else complete
-% from "match specifications in erlang":
-% Variables take the form '$<number>' where <number> is an integer 
-% between 0 (zero) and 100000000 (1e+8)
-
-analyze_pattern_complete (Pattern, Acc) when is_atom (Pattern) ->
-  case is_variable (Pattern) of
-    true ->
-      { partial, [ <<0>> | Acc ], [ <<255>> | Acc ] };
-    false ->
-      List = atom_to_list (Pattern),
-      Length = length (List),
-      { complete, [ List, <<100,Length:16/big-unsigned>> | Acc ] }
-  end;
-
-% everything else is literal 
-% TODO: binaries and bit strings with variables: allowed in match specs (?)
-analyze_pattern_complete (Pattern, Acc) ->
-  <<131, Rest/binary>> = erlang:term_to_binary (Pattern, [ { minor_version, 1 } ]),
-  { complete, [ Rest | Acc ] }.
-
-% for recursing along lists or tuples
-analyze_pattern_complete_elements ([], true, Acc) ->
-  { complete, [ <<106>> | Acc ] };
-analyze_pattern_complete_elements ([], false, Acc) ->
-  { complete, Acc };
-analyze_pattern_complete_elements ([ H | T ], AddTail, Acc) ->
-  case analyze_pattern_complete (H, Acc) of
-    { complete, NewAcc } ->
-      analyze_pattern_complete_elements (T, AddTail, NewAcc);
-    R ->
-      R
-  end.
+render_interval ({ interval, ExtendedTerm, ExtendedTerm }) ->
+  { [ <<131>>, render_extended_term (ExtendedTerm) ], 
+    [ <<131>>, render_extended_term (ExtendedTerm) ] }.
 
 % foldl
 
@@ -1132,53 +1064,6 @@ init_table_term (TcBdbEts, InitFun) ->
       catch InitFun (close),
       { error, { init_fun_exception, { X, Y } } }
   end.
-
-% interval_union
-
-interval_union (Intervals) ->
-  lists:foldl (fun merge_interval/2, [], Intervals).
-
-is_variable ('_') -> true;
-is_variable (Atom) when is_atom (Atom) ->
-  List = atom_to_list (Atom),
-  case { hd (List), catch erlang:list_to_integer (tl (List)) } of
-    { $$, X } when is_integer (X), X >= 0, X =< 100000000 -> true;
-    _ -> false
-  end.
-
-% max
-
-max (A, B) when A > B -> A;
-max (_, B) -> B.
-
-% min
-
-min (A, B) when A < B -> A;
-min (_, B) -> B.
-
-% merge_interval
-
-merge_interval ([], Acc) ->
-  Acc;
-merge_interval (Interval, Acc) ->
-  merge_interval (Interval, Acc, []).
-
-merge_interval (Cur, [], Prev) ->
-  [ Cur | Prev ];
-merge_interval (Cur, [ H | T ], Prev) ->
-  case overlap (Cur, H) of
-    { true, New } -> merge_interval (New, T ++ Prev);
-    false -> merge_interval (Cur, T, [ H | Prev ])
-  end.
-
-% overlap
-
-overlap ({ A, B }, { C, D }) when (C =< A andalso A =< D);
-                                  (C =< B andalso B =< D);
-                                  (A =< C andalso D =< B) ->
-  { true, { min (A, C), max (B, D) } };
-overlap (_, _) ->
-  false.
 
 % select
 
@@ -1466,15 +1351,49 @@ random_matchhead ([ H | T ]) ->
     3 -> { V, { random_term (), M } }
   end.
 
-random_guard (_Variables) ->
-  [].   % TODO
-
 random_matchbody (Variables) ->
   case { random:uniform (3), Variables } of
     { _, [] } -> [ '$_' ];
     { 1, _ } -> [ '$$' ];
     { 2, _ } -> [ '$_' ];
     { 3, _ } -> [ hd (Variables) | lists:filter (fun (_) -> random:uniform (2) =:= 1 end, tl (Variables)) ]
+  end.
+
+literalize (T) when is_tuple (T) ->
+  case random:uniform (2) of
+    1 -> { const, list_to_tuple (literalize (tuple_to_list (T))) };
+    2 -> { list_to_tuple (literalize (tuple_to_list (T))) }
+  end;
+literalize (T) when is_list (T) ->
+  [ literalize (X) || X <- T ];
+literalize (T) ->
+  T.
+
+random_literal () ->
+  literalize (random_term ()).
+
+random_guard (Variables) ->
+  [ G || V <- Variables, G <- random_guard_variable (V) ].
+
+random_guard_variable (Variable) ->
+  case random:uniform (11) of
+    1 -> [];
+    2 -> [ { '>', Variable, random_literal () } ];
+    3 -> [ { '>', random_literal (), Variable } ];
+    4 -> [ { '>=', Variable, random_literal () } ];
+    5 -> [ { '>=', random_literal (), Variable } ];
+    6 -> [ { '<', Variable, random_literal () } ];
+    7 -> [ { '<', random_literal (), Variable } ];
+    8 -> [ { '=<', Variable, random_literal () } ];
+    9 -> [ { '=<', random_literal (), Variable } ];
+    10 -> [ { '=:=', Variable, random_literal () } ];
+    11 -> [ { '=:=', random_literal (), Variable } ];
+    12 -> [ { 'is_integer', 10 } ]
+  end
+  ++
+  case random:uniform (5) of
+    1 -> random_guard_variable (Variable);
+    _ -> []
   end.
 
 random_matchspec () ->
@@ -2339,6 +2258,23 @@ select_test_ () ->
                (fun ({ Key, Value, MatchSpec }) ->
                   TcbdbSelect = tcbdbets:select (R, MatchSpec),
                   EtsSelect = ets:select (Tab, MatchSpec),
+                  case TcbdbSelect =:= EtsSelect of
+                    false ->
+                      error_logger:error_msg 
+                        ("MatchSpec = ~p~n"
+                         "TcbdbSelect (~p) -- EtsSelect (~p) = ~p~n"
+                         "EtsSelect (~p) -- TcbdbSelect (~p) = ~p~n",
+                         [ MatchSpec,
+                           length (TcbdbSelect),
+                           length (EtsSelect),
+                           TcbdbSelect -- EtsSelect,
+                           length (EtsSelect),
+                           length (TcbdbSelect),
+                           EtsSelect -- TcbdbSelect ]);
+                    true ->
+                      ok
+                  end,
+
                   TcbdbSelect = EtsSelect,
 
                   case length (TcbdbSelect) of
@@ -2362,7 +2298,7 @@ select_test_ () ->
                   true
                 end) (X)),
 
-    ok = flasscheck (1000, 10, T)
+    ok = flasscheck (10000, 10, T)
   end,
 
   { setup,
@@ -2370,7 +2306,7 @@ select_test_ () ->
       Tab = ets:new (?MODULE, [ public, ordered_set ]),
       tcerl:start (),
       file:delete ("flass" ++ os:getpid ()),
-      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () }]),
+      { ok, R } = tcbdbets:open_file ([ { file, "flass" ++ os:getpid () } ]),
       { Tab, R }
     end,
     fun ({ Tab, _ }) ->

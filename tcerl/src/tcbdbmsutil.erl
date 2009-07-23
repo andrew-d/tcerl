@@ -3,6 +3,10 @@
 -module (tcbdbmsutil).
 -export ([ analyze/2 ]).
 
+-ifdef (HAVE_EUNIT).
+-include_lib ("eunit/include/eunit.hrl").
+-endif.
+
 %-=====================================================================-
 %-                                Types                                -
 %-=====================================================================-
@@ -351,3 +355,125 @@ overlap ({ interval, A, B }, { interval, C, D }) ->
   end;
 overlap (_, _) ->
   false.
+
+-ifdef (EUNIT).
+
+% ok, don't want to depend upon quickcheck, so here's some cheese
+
+-define (FORALL (Var, Gen, Cond), fun (A) -> Var = (Gen) (A), Cond end).
+
+flasscheck (N, Limit, P) -> flasscheck (1, N, math:log (Limit), P).
+
+flasscheck (M, N, LogLimit, P) when M =< N -> 
+  Size = trunc (math:exp (LogLimit * M / N)),
+  true = P (Size),
+  io:format (".", []),
+  flasscheck (M + 1, N, LogLimit, P);
+flasscheck (_, N, _, _) -> 
+  io:format ("~n~p tests passed~n", [ N ]),
+  ok.
+
+random_integer () ->
+  random:uniform (100000).
+
+random_float () ->
+  random:uniform ().
+
+random_binary () ->
+  list_to_binary ([ random:uniform (255) || _ <- lists:seq (1, 5) ]).
+
+random_atom () ->
+  list_to_atom ([ random:uniform ($z - $a) + $a || _ <- lists:seq (1, 5) ]).
+
+random_list () ->
+  [ random_term () || _ <- lists:seq (1, 3) ].
+
+random_tuple () ->
+  list_to_tuple (random_list ()).
+
+random_term () ->
+  case random:uniform (10) of
+    1 -> random_integer ();
+    2 -> random_integer ();
+    3 -> random_float ();
+    4 -> random_float ();
+    5 -> random_binary ();
+    6 -> random_binary ();
+    7 -> random_atom ();
+    8 -> random_atom ();
+    9 -> random_list ();
+    10 -> random_tuple ()
+  end.
+
+-spec term_to_extended_term (any ()) -> extended_term ().
+
+term_to_extended_term (X) when is_list (X) ->
+  [ term_to_extended_term (Y) || Y <- X ];
+term_to_extended_term (X) when is_tuple (X) ->
+  { tuple, term_to_extended_term (tuple_to_list (X)) };
+term_to_extended_term (X) ->
+  { literal, X }.
+
+%-=====================================================================-
+%-                                Tests                                -
+%-=====================================================================-
+
+all_test () ->
+  [] = analyze ([ { foo, [], [ '$_' ] } ], 1),
+  [ { interval, smallest, largest } ] = analyze ([ { '_', [], [ '$_' ] } ], 1),
+  [ { interval, smallest, largest } ] = analyze ([ { '_', [], [ '$_' ] },
+                                                   { foo, [], [ '$_' ] } 
+                                                 ],
+                                                 1),
+  [ { interval, smallest, largest } ] = analyze ([ { '_', [], [ '$_' ] },
+                                                   { foo, [], [ '$_' ] },
+                                                   { '$1', [], [ 6 ] } 
+                                                 ],
+                                                 2),
+  [ { interval, smallest, largest } ] = analyze ([ { '_', [], [ '$_' ] },
+                                                   { foo, [], [ '$_' ] },
+                                                   { '$1', [], [ 6 ] },
+                                                   { '$2', [], [ 9 ] }
+                                                 ],
+                                                 3),
+  ok.
+
+all_keys_test () ->
+  [ { interval, { literal, foo }, { literal, foo } } ] = 
+    analyze ([ { { foo, '_' }, [], [ '$_' ] } ], 1),
+  [ { interval, smallest, largest } ] = 
+    analyze ([ { { foo, '_' }, [], [ '$_' ] } ], 2),
+  [ { interval, { literal, bar }, { literal, bar } },
+    { interval, { literal, foo }, { literal, foo } } ] = 
+    analyze ([ { { foo, '_' }, [], [ '$_' ] },
+               { { bar, '$1' }, [], [ '$_' ] } ], 1),
+  [ { interval, smallest, largest } ] = 
+    analyze ([ { { foo, '_' }, [], [ '$_' ] },
+               { { bar, '$1' }, [], [ '$_' ] } ], 2),
+  ok.
+
+prefix_tuple_test_ () ->
+  fun () ->
+    T = ?FORALL (X,
+                 fun (_) -> random_tuple () end,
+                 (fun (Prefix) ->
+                    PrefixList = tuple_to_list (Prefix),
+                    LitPrefixList = term_to_extended_term (PrefixList),
+                    BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+                    LowerBound = LitPrefixList ++ [ smallest ],
+                    UpperBound = LitPrefixList ++ [ largest ],
+                    [ { interval, { tuple, LowerBound }, { tuple, UpperBound } 
+                      }
+                    ] = analyze ([ { { foo, BindingTuple, bar }, 
+                                     [], 
+                                     [ '$1' ] 
+                                   }
+                                 ],
+                                 2),
+                    true
+                 end) (X)),
+
+    ok = flasscheck (100, 10, T)
+  end.
+
+-endif.
