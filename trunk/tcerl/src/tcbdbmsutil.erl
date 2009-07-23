@@ -18,7 +18,7 @@
 -type expression_match_variable () :: match_variable ()  | '$_' | '$$'.
 -type non_composite_term () :: pid () | port () | ref () | atom () | binary () | float () | integer ().
 -type match_constant () :: { const, any () }.
--type term_construct () :: {{}} | {{ any () }} | non_composite_term () | match_constant ().
+-type term_construct () :: {{}} | {{ any () }} | non_composite_term () | match_constant () | [ any () ].
 -type condition_expression () :: expression_match_variable () | term_construct ().
 -type match_condition () :: { guard_function () } | 
                             { guard_function (), condition_expression () } |
@@ -105,8 +105,8 @@ adjust_upper_bound (Variable, ExtendedTerm, Bindings = { bindings, Dict }) ->
 
 analyze_keypos (MatchHead, Bindings) when is_tuple (MatchHead) ->
   case analyze_keypos_elements (tuple_to_list (MatchHead), Bindings, []) of
-    { interval, Lower, Upper } -> 
-      { interval, tupliz (Lower), tupliz (Upper) };
+    { interval, Lower, Upper } when is_list (Lower), is_list (Upper) -> 
+      { interval, { tuple, Lower }, { tuple, Upper } };
     none -> 
       none
   end;
@@ -345,8 +345,3 @@ term_to_extended_term (X) when is_tuple (X) ->
   { tuple, term_to_extended_term (tuple_to_list (X)) };
 term_to_extended_term (X) ->
   { literal, X }.
-
--spec tupliz (extended_term ()) -> extended_term ().
-
-tupliz (X) when is_list (X) -> { tuple, X };
-tupliz (X) -> X.
