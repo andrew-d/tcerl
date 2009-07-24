@@ -147,7 +147,7 @@ analyze_keypos_elements ([ H | T ], Bindings, Acc) ->
       none
   end.
 
--spec analyze_op_arguments (condition_expression (), condition_expression ()) -> { match_variable (), extended_term () } | false.
+-spec analyze_op_arguments (condition_expression (), condition_expression ()) -> { match_variable (), extended_term () } | { swapped, match_variable (), extended_term () } | false.
 
 analyze_op_arguments (A, B) ->
   case { is_match_variable (A), is_constant_expression (B) } of
@@ -434,7 +434,7 @@ term_to_extended_term (X) ->
 term_to_match_condition (X) when is_list (X) ->
   [ term_to_match_condition (Y) || Y <- X ];
 term_to_match_condition (X) when is_tuple (X) ->
-  { list_to_tuple (term_to_match_condition (tuple_to_list (X))) };
+  { list_to_tuple ([ term_to_match_condition (Y) || Y <- tuple_to_list (X) ]) };
 term_to_match_condition (X) ->
   X.
 
