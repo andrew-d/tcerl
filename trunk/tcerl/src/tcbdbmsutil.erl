@@ -156,7 +156,7 @@ analyze_op_arguments (A, B) ->
     _ ->
       case { is_match_variable (B), is_constant_expression (A) } of
         { true, true } ->
-          { B, match_condition_to_extended_term (A) };
+          { swapped, B, match_condition_to_extended_term (A) };
         _ ->
           false
       end
@@ -174,6 +174,8 @@ analyze_match_conditions ({ Op, A, B }, Bindings) when Op =:= '>';
   case analyze_op_arguments (A, B) of
     { Variable, ExtendedTerm } ->
       adjust_lower_bound (Variable, ExtendedTerm, Bindings);
+    { swapped, Variable, ExtendedTerm } ->
+      adjust_upper_bound (Variable, ExtendedTerm, Bindings);
     false ->
       Bindings
   end;
@@ -182,6 +184,8 @@ analyze_match_conditions ({ Op, A, B }, Bindings) when Op =:= '<';
   case analyze_op_arguments (A, B) of
     { Variable, ExtendedTerm } ->
       adjust_upper_bound (Variable, ExtendedTerm, Bindings);
+    { swapped, Variable, ExtendedTerm } ->
+      adjust_lower_bound (Variable, ExtendedTerm, Bindings);
     false ->
       Bindings
   end;
@@ -353,9 +357,7 @@ overlap ({ interval, A, B }, { interval, C, D }) ->
       { true, { interval, extended_min (A, C), extended_max (B, D) } };
     false ->
       false
-  end;
-overlap (_, _) ->
-  false.
+  end.
 
 -ifdef (EUNIT).
 
@@ -468,6 +470,7 @@ term_interval_union (Prefix, A, B, C, D) ->
 
 all_test () ->
   [] = analyze ([ { foo, [], [ '$_' ] } ], 1),
+  [] = analyze ([ { 7, [], [ '$_' ] } ], 1),
   [ { interval, smallest, largest } ] = analyze ([ { '_', [], [ '$_' ] } ], 1),
   [ { interval, smallest, largest } ] = analyze ([ { '_', [], [ '$_' ] },
                                                    { foo, [], [ '$_' ] } 
@@ -501,180 +504,411 @@ all_keys_test () ->
   ok.
 
 prefix_tuple_test_ () ->
-  fun () ->
-    T = ?FORALL (X,
-                 fun (_) -> random_tuple () end,
-                 (fun (Prefix) ->
-                    PrefixList = tuple_to_list (Prefix),
-                    LitPrefixList = term_to_extended_term (PrefixList),
-                    BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
-                    LowerBound = LitPrefixList ++ [ smallest ],
-                    UpperBound = LitPrefixList ++ [ largest ],
-                    [ { interval, { tuple, LowerBound }, { tuple, UpperBound } 
-                      }
-                    ] = analyze ([ { { foo, BindingTuple, bar }, 
-                                     [], 
-                                     [ '$1' ] 
-                                   }
-                                 ],
-                                 2),
-                    true
-                 end) (X)),
-
-    ok = flasscheck (1000, 10, T)
-  end.
+  { timeout,
+    60,
+    fun () ->
+      T = ?FORALL (X,
+                   fun (_) -> random_tuple () end,
+                   (fun (Prefix) ->
+                      PrefixList = tuple_to_list (Prefix),
+                      LitPrefixList = term_to_extended_term (PrefixList),
+                      BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+                      LowerBound = LitPrefixList ++ [ smallest ],
+                      UpperBound = LitPrefixList ++ [ largest ],
+                      [ { interval, { tuple, LowerBound }, { tuple, UpperBound } 
+                        }
+                      ] = analyze ([ { { foo, BindingTuple, bar }, 
+                                       [], 
+                                       [ '$1' ] 
+                                     }
+                                   ],
+                                   2),
+                      true
+                   end) (X)),
+  
+      ok = flasscheck (250, 10, T)
+    end
+  }.
 
 prefix_tuple_with_guard_test_ () ->
-  fun () ->
-    T = ?FORALL (X,
-                 fun (_) -> { random_tuple (),
-                              random_term (),
-                              random_term (),
-                              random_gt (),
-                              random_lt () } 
-                  end,
-                 (fun ({ Prefix, R, S, Gt, Lt }) ->
-                    [ L, U ] = lists:sort ([ R, S ]),
-                    Lower = term_to_match_condition (L),
-                    Upper = term_to_match_condition (U),
-                    PrefixList = tuple_to_list (Prefix),
-                    LitPrefixList = term_to_extended_term (PrefixList),
-                    BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
-                    LowerBound = LitPrefixList ++ term_to_extended_term ([ L ]),
-                    UpperBound = LitPrefixList ++ term_to_extended_term ([ U ]),
-                    [ { interval, { tuple, LowerBound }, { tuple, UpperBound } 
-                      }
-                    ] = analyze ([ { { foo, BindingTuple, bar }, 
-                                     [ { Gt, '$1', Lower },
-                                       { Lt, '$1', Upper } 
-                                     ],
-                                     [ '$1' ] 
-                                   }
-                                 ],
-                                 2),
-                    true
-                 end) (X)),
-
-    ok = flasscheck (1000, 10, T)
-  end.
+  { timeout,
+    60,
+    fun () ->
+      T = ?FORALL (X,
+                   fun (_) -> { random_tuple (),
+                                random_term (),
+                                random_term (),
+                                random_gt (),
+                                random_lt () } 
+                    end,
+                   (fun ({ Prefix, R, S, Gt, Lt }) ->
+                      [ L, U ] = lists:sort ([ R, S ]),
+                      Lower = term_to_match_condition (L),
+                      Upper = term_to_match_condition (U),
+                      PrefixList = tuple_to_list (Prefix),
+                      LitPrefixList = term_to_extended_term (PrefixList),
+                      BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+                      LowerBound = LitPrefixList ++ term_to_extended_term ([ L ]),
+                      UpperBound = LitPrefixList ++ term_to_extended_term ([ U ]),
+                      [ { interval, { tuple, LowerBound }, { tuple, UpperBound } 
+                        }
+                      ] = analyze ([ { { foo, BindingTuple, bar }, 
+                                       [ { Gt, '$1', Lower },
+                                         { Lt, '$1', Upper },
+                                         { Gt, 69, { const, 69 } },
+                                         { Lt, 69, 69 },
+                                         { 'and', true, true }
+                                       ],
+                                       [ '$1' ] 
+                                     }
+                                   ],
+                                   2),
+                      true
+                   end) (X)),
+  
+      ok = flasscheck (250, 10, T)
+    end
+  }.
 
 prefix_tuple_with_double_guard_test_ () ->
-  fun () ->
-    T = ?FORALL (X,
-                 fun (_) -> { random_tuple (),
-                              random_term (),
-                              random_term (),
-                              random_term (),
-                              random_term () } 
-                 end,
-                 (fun ({ Prefix, R, S, RDeux, SDeux }) ->
-                    [ L, U ] = lists:sort ([ R, S ]),
-                    Lower = term_to_match_condition (L),
-                    Upper = term_to_match_condition (U),
-                    [ LDeux, UDeux ] = lists:sort ([ RDeux, SDeux ]),
-                    LowerDeux = term_to_match_condition (LDeux),
-                    UpperDeux = term_to_match_condition (UDeux),
-                    PrefixList = tuple_to_list (Prefix),
-                    BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
-                    Result = 
-                      term_interval_union (PrefixList, L, U, LDeux, UDeux),
-                    Result = 
-                        analyze ([ { { foo, BindingTuple, bar }, 
-                                     [ { '>', '$1', Lower },
-                                       { '<', '$1', Upper } 
-                                     ],
-                                     [ '$1' ] 
-                                   },
-                                   { { bar, BindingTuple, foo },
-                                     [ { '>', '$1', LowerDeux },
-                                       { '<', '$1', UpperDeux } 
-                                     ],
-                                     [ '$1' ] 
-                                   }
-                                 ],
-                                 2),
-                    true
-                 end) (X)),
+  { timeout,
+    60,
+    fun () ->
+      T = ?FORALL (X,
+                   fun (_) -> { random_tuple (),
+                                random_term (),
+                                random_term (),
+                                random_term (),
+                                random_term (),
+                                random_gt (),
+                                random_lt () } 
+                   end,
+                   (fun ({ Prefix, R, S, RDeux, SDeux, Gt, Lt }) ->
+                      [ L, U ] = lists:sort ([ R, S ]),
+                      Lower = term_to_match_condition (L),
+                      Upper = term_to_match_condition (U),
+                      [ LDeux, UDeux ] = lists:sort ([ RDeux, SDeux ]),
+                      LowerDeux = term_to_match_condition (LDeux),
+                      UpperDeux = term_to_match_condition (UDeux),
+                      PrefixList = tuple_to_list (Prefix),
+                      BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+                      Result = 
+                        term_interval_union (PrefixList, L, U, LDeux, UDeux),
+                      Result = 
+                          analyze ([ { { foo, BindingTuple, bar }, 
+                                       [ { Gt, '$1', Lower },
+                                         { Lt, '$1', Upper },
+                                         { Lt, '$1', Upper } 
+                                       ],
+                                       [ '$1' ] 
+                                     },
+                                     { { bar, BindingTuple, foo },
+                                       [ { Lt, LowerDeux, '$1' },
+                                         { Gt, UpperDeux, '$1' },
+                                         { Gt, UpperDeux, '$1' } 
+                                       ],
+                                       [ '$1' ] 
+                                     }
+                                   ],
+                                   2),
+                      true
+                   end) (X)),
+  
+      ok = flasscheck (250, 10, T)
+    end
+  }.
 
-    ok = flasscheck (1000, 10, T)
-  end.
+prefix_tuple_with_double_impossible_guard_test_ () ->
+  { timeout,
+    60,
+    fun () ->
+      T = ?FORALL (X,
+                   fun (_) -> { random_tuple (),
+                                random_term (),
+                                random_term (),
+                                random_term (),
+                                random_term (),
+                                random_gt (),
+                                random_lt () } 
+                   end,
+                   (fun ({ Prefix, R, S, RDeux, SDeux, Gt, Lt }) ->
+                      [ L, U ] = lists:sort ([ R, S ]),
+                      Lower = term_to_match_condition (L),
+                      Upper = term_to_match_condition (U),
+                      [ UDeux, LDeux ] = lists:sort ([ RDeux, SDeux ]),
+                      LowerDeux = term_to_match_condition (LDeux),
+                      UpperDeux = term_to_match_condition (UDeux),
+                      PrefixList = tuple_to_list (Prefix),
+                      BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+                      Result = 
+                        [ { interval,
+                            { tuple,
+                              term_to_extended_term (PrefixList ++ [ L ])
+                            },
+                            { tuple,
+                              term_to_extended_term (PrefixList ++ [ U ])
+                            }
+                          } 
+                        ],
+                      Result = 
+                          analyze ([ { { foo, BindingTuple, bar }, 
+                                       [ { Gt, '$1', Lower },
+                                         { Lt, '$1', Upper },
+                                         { Lt, '$1', Upper }
+                                       ],
+                                       [ '$1' ] 
+                                     },
+                                     { { bar, BindingTuple, foo },
+                                       [ { Gt, UpperDeux, '$1' },
+                                         { Lt, LowerDeux, '$1' },
+                                         { Lt, LowerDeux, '$1' }
+                                       ],
+                                       [ '$1' ] 
+                                     }
+                                   ],
+                                   2),
+                      true
+                   end) (X)),
+  
+      ok = flasscheck (250, 10, T)
+    end
+  }.
+
+prefix_tuple_with_double_impossible_guard_swap_test_ () ->
+  { timeout,
+    60,
+    fun () ->
+      T = ?FORALL (X,
+                   fun (_) -> { random_tuple (),
+                                random_term (),
+                                random_term (),
+                                random_term (),
+                                random_term (),
+                                random_gt (),
+                                random_lt () } 
+                   end,
+                   (fun ({ Prefix, R, S, RDeux, SDeux, Gt, Lt }) ->
+                      [ L, U ] = lists:sort ([ R, S ]),
+                      Lower = term_to_match_condition (L),
+                      Upper = term_to_match_condition (U),
+                      [ UDeux, LDeux ] = lists:sort ([ RDeux, SDeux ]),
+                      LowerDeux = term_to_match_condition (LDeux),
+                      UpperDeux = term_to_match_condition (UDeux),
+                      PrefixList = tuple_to_list (Prefix),
+                      BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+                      Result = 
+                        [ { interval,
+                            { tuple,
+                              term_to_extended_term (PrefixList ++ [ L ])
+                            },
+                            { tuple,
+                              term_to_extended_term (PrefixList ++ [ U ])
+                            }
+                          } 
+                        ],
+                      Result = 
+                          analyze ([ { { foo, BindingTuple, bar }, 
+                                       [ { Gt, Upper, '$1' },
+                                         { Lt, Lower, '$1' },
+                                         { Gt, Upper, '$1' }
+                                       ],
+                                       [ '$1' ] 
+                                     },
+                                     { { bar, BindingTuple, foo },
+                                       [ { Gt, '$1', LowerDeux },
+                                         { Lt, '$1', UpperDeux },
+                                         { Lt, '$1', UpperDeux }
+                                       ],
+                                       [ '$1' ] 
+                                     }
+                                   ],
+                                   2),
+                      true
+                   end) (X)),
+  
+      ok = flasscheck (250, 10, T)
+    end
+  }.
+
+prefix_tuple_with_double_gteq_guard_test_ () ->
+  { timeout,
+    60,
+    fun () ->
+      T = ?FORALL (X,
+                   fun (_) -> { random_tuple (),
+                                random_term (),
+                                random_term (),
+                                random_term (),
+                                random_gt (),
+                                random_lt () } 
+                   end,
+                   (fun ({ Prefix, R, S, EDeux, Gt, Lt }) ->
+                      [ L, U ] = lists:sort ([ R, S ]),
+                      Lower = term_to_match_condition (L),
+                      Upper = term_to_match_condition (U),
+                      EqualDeux = term_to_match_condition (EDeux),
+                      PrefixList = tuple_to_list (Prefix),
+                      BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+                      Result = 
+                        term_interval_union (PrefixList, L, U, EDeux, EDeux),
+                      Result = 
+                          analyze ([ { { foo, BindingTuple, bar }, 
+                                       [ { Gt, '$1', Lower },
+                                         { Lt, '$1', Upper } 
+                                       ],
+                                       [ '$1' ] 
+                                     },
+                                     { { bar, BindingTuple, foo },
+                                       [ { '=:=', EqualDeux, '$1' },
+                                         { '=:=', 69, 69 }
+                                       ],
+                                       [ '$1' ] 
+                                     }
+                                   ],
+                                   2),
+                      true
+                   end) (X)),
+  
+      ok = flasscheck (250, 10, T)
+    end
+  }.
 
 prefix_tuple_with_double_halfgt_guard_test_ () ->
-  fun () ->
-    T = ?FORALL (X,
-                 fun (_) -> { random_tuple (),
-                              random_term (),
-                              random_term (),
-                              random_gt () } 
-                 end,
-                 (fun ({ Prefix, L, LDeux, Gt }) ->
-                    Lower = term_to_match_condition (L),
-                    LowerDeux = term_to_match_condition (LDeux),
-                    PrefixList = tuple_to_list (Prefix),
-                    BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
-
-                    Result = 
-                      [ { interval, 
-                        term_to_extended_term (list_to_tuple (PrefixList ++ [ lists:min ([ L, LDeux ]) ])),
-                        { tuple,
-                          term_to_extended_term (PrefixList) ++ [ largest ]
-                        }
-                      } ],
-
-                    Result = 
-                        analyze ([ { { foo, BindingTuple, bar }, 
-                                     [ { Gt, '$1', Lower } ],
-                                     [ '$1' ] 
-                                   },
-                                   { { bar, BindingTuple, foo },
-                                     [ { Gt, '$1', LowerDeux } ],
-                                     [ '$1' ] 
-                                   }
-                                 ],
-                                 2),
-                    true
-                 end) (X)),
-
-    ok = flasscheck (1000, 10, T)
-  end.
+  { timeout,
+    60,
+    fun () ->
+      T = ?FORALL (X,
+                   fun (_) -> { random_tuple (),
+                                random_term (),
+                                random_term (),
+                                random_gt (),
+                                random_lt () }
+                   end,
+                   (fun ({ Prefix, L, LDeux, Gt, Lt }) ->
+                      Lower = term_to_match_condition (L),
+                      LowerDeux = term_to_match_condition (LDeux),
+                      PrefixList = tuple_to_list (Prefix),
+                      BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+  
+                      Result = 
+                        [ { interval, 
+                          term_to_extended_term (list_to_tuple (PrefixList ++ [ lists:min ([ L, LDeux ]) ])),
+                          { tuple,
+                            term_to_extended_term (PrefixList) ++ [ largest ]
+                          }
+                        } ],
+  
+                      Result = 
+                          analyze ([ { { foo, BindingTuple, bar }, 
+                                       [ { Gt, '$1', Lower } ],
+                                       [ '$1' ] 
+                                     },
+                                     { { bar, BindingTuple, foo },
+                                       [ { Lt, LowerDeux, '$1' } ],
+                                       [ '$1' ] 
+                                     }
+                                   ],
+                                   2),
+                      true
+                   end) (X)),
+  
+      ok = flasscheck (250, 10, T)
+    end
+  }.
 
 prefix_tuple_with_double_halflt_guard_test_ () ->
-  fun () ->
-    T = ?FORALL (X,
-                 fun (_) -> { random_tuple (),
-                              random_term (),
-                              random_term (),
-                              random_lt () } 
-                 end,
-                 (fun ({ Prefix, U, UDeux, Lt }) ->
-                    Upper = term_to_match_condition (U),
-                    UpperDeux = term_to_match_condition (UDeux),
-                    PrefixList = tuple_to_list (Prefix),
-                    BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+  { timeout,
+    60,
+    fun () ->
+      T = ?FORALL (X,
+                   fun (_) -> { random_tuple (),
+                                random_term (),
+                                random_term (),
+                                random_gt (),
+                                random_lt () } 
+                   end,
+                   (fun ({ Prefix, U, UDeux, Gt, Lt }) ->
+                      Upper = term_to_match_condition (U),
+                      UpperDeux = term_to_match_condition (UDeux),
+                      PrefixList = tuple_to_list (Prefix),
+                      BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+  
+                      Result = 
+                        [ { interval, 
+                          { tuple,
+                            term_to_extended_term (PrefixList) ++ [ smallest ]
+                          },
+                          term_to_extended_term (list_to_tuple (PrefixList ++ [ lists:max ([ U, UDeux ]) ]))
+                        } ],
+  
+                      Result = 
+                          analyze ([ { { foo, BindingTuple, bar }, 
+                                       [ { Lt, '$1', Upper } ],
+                                       [ '$1' ] 
+                                     },
+                                     { { bar, BindingTuple, foo },
+                                       [ { Gt, UpperDeux, '$1' } ],
+                                       [ '$1' ] 
+                                     }
+                                   ],
+                                   2),
+                      true
+                   end) (X)),
+  
+      ok = flasscheck (250, 10, T)
+    end
+  }.
 
-                    Result = 
-                      [ { interval, 
-                        { tuple,
-                          term_to_extended_term (PrefixList) ++ [ smallest ]
-                        },
-                        term_to_extended_term (list_to_tuple (PrefixList ++ [ lists:max ([ U, UDeux ]) ]))
-                      } ],
+prefix_tuple_with_double_eq_guard_test_ () ->
+  { timeout,
+    60,
+    fun () ->
+      T = ?FORALL (X,
+                   fun (_) -> { random_tuple (),
+                                random_term (),
+                                random_term () }
+                   end,
+                   (fun ({ Prefix, E, EDeux }) ->
+                      Equal = term_to_match_condition (E),
+                      EqualDeux = term_to_match_condition (EDeux),
+                      PrefixList = tuple_to_list (Prefix),
+                      BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
 
-                    Result = 
-                        analyze ([ { { foo, BindingTuple, bar }, 
-                                     [ { Lt, '$1', Upper } ],
-                                     [ '$1' ] 
-                                   },
-                                   { { bar, BindingTuple, foo },
-                                     [ { Lt, '$1', UpperDeux } ],
-                                     [ '$1' ] 
-                                   }
-                                 ],
-                                 2),
-                    true
-                 end) (X)),
+                      Result = 
+                        [ { interval,
+                            { tuple,
+                              term_to_extended_term (PrefixList ++ [ EDeux ])
+                            },
+                            { tuple,
+                              term_to_extended_term (PrefixList ++ [ EDeux ])
+                            }
+                          },
+                          { interval,
+                            { tuple,
+                              term_to_extended_term (PrefixList ++ [ E ])
+                            },
+                            { tuple,
+                              term_to_extended_term (PrefixList ++ [ E ])
+                            }
+                          }
+                        ],
 
-    ok = flasscheck (1000, 10, T)
-  end.
+                      Result =
+                          analyze ([ { { foo, BindingTuple, bar }, 
+                                       [ { '=:=', '$1', Equal } ],
+                                       [ '$1' ] 
+                                     },
+                                     { { bar, BindingTuple, foo },
+                                       [ { '=:=', EqualDeux, '$1' } ],
+                                       [ '$1' ] 
+                                     }
+                                   ],
+                                   2),
+                      true
+                   end) (X)),
+
+      ok = flasscheck (250, 10, T)
+    end
+  }.
 
 -endif.
