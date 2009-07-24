@@ -313,12 +313,12 @@ match_condition_to_extended_term (X) when is_tuple (X),
                                           is_tuple (element (1, X)) ->
   { tuple, match_condition_to_extended_term (tuple_to_list (element (1, X))) };
 match_condition_to_extended_term ({ const, X }) when is_tuple (X) ->
-  { tuple, [ { literal, Y } || Y <- tuple_to_list (X) ] };
-match_condition_to_extended_term ({ const, X }) when is_list (X) ->
-  [ { literal, Y } || Y <- X ];
+  { tuple, match_condition_to_extended_term (tuple_to_list (X)) };
+match_condition_to_extended_term ({ const, X }) ->
+  match_condition_to_extended_term (X);
 match_condition_to_extended_term (X) when is_list (X) ->
   [ match_condition_to_extended_term (Y) || Y <- X ];
-match_condition_to_extended_term (X) ->
+match_condition_to_extended_term (X) when not is_tuple (X) ->
   { literal, X }.
 
 -spec merge_interval (interval (), [ interval () ]) -> [ interval () ].
@@ -414,6 +414,15 @@ term_to_extended_term (X) when is_tuple (X) ->
 term_to_extended_term (X) ->
   { literal, X }.
 
+-spec term_to_match_condition (any ()) -> match_condition ().
+
+term_to_match_condition (X) when is_list (X) ->
+  [ term_to_match_condition (Y) || Y <- X ];
+term_to_match_condition (X) when is_tuple (X) ->
+  { list_to_tuple (term_to_match_condition (tuple_to_list (X))) };
+term_to_match_condition (X) ->
+  X.
+
 %-=====================================================================-
 %-                                Tests                                -
 %-=====================================================================-
@@ -473,7 +482,40 @@ prefix_tuple_test_ () ->
                     true
                  end) (X)),
 
-    ok = flasscheck (100, 10, T)
+    ok = flasscheck (1000, 10, T)
   end.
+
+prefix_tuple_with_guard_test_ () ->
+  fun () ->
+    T = ?FORALL (X,
+                 fun (_) -> { random_tuple (),
+                              random_term (),
+                              random_term () } 
+                  end,
+                 (fun ({ Prefix, R, S }) ->
+                    [ L, U ] = lists:sort ([ R, S ]),
+                    Lower = term_to_match_condition (L),
+                    Upper = term_to_match_condition (U),
+                    PrefixList = tuple_to_list (Prefix),
+                    LitPrefixList = term_to_extended_term (PrefixList),
+                    BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+                    LowerBound = LitPrefixList ++ term_to_extended_term ([ L ]),
+                    UpperBound = LitPrefixList ++ term_to_extended_term ([ U ]),
+                    [ { interval, { tuple, LowerBound }, { tuple, UpperBound } 
+                      }
+                    ] = analyze ([ { { foo, BindingTuple, bar }, 
+                                     [ { '>', '$1', Lower },
+                                       { '<', '$1', Upper } 
+                                     ],
+                                     [ '$1' ] 
+                                   }
+                                 ],
+                                 2),
+                    true
+                 end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end.
+
 
 -endif.
