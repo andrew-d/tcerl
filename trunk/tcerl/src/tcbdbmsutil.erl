@@ -347,7 +347,8 @@ new_bindings () -> { bindings, dict:new () }.
 overlap ({ interval, A, B }, { interval, C, D }) ->
   case (extended_leq (C, A) andalso extended_leq (A, D)) orelse
        (extended_leq (C, B) andalso extended_leq (B, D)) orelse
-       (extended_leq (A, C) andalso extended_leq (D, B)) of
+       (extended_leq (A, C) andalso extended_leq (C, B)) orelse
+       (extended_leq (A, D) andalso extended_leq (D, B)) of 
     true ->
       { true, { interval, extended_min (A, C), extended_max (B, D) } };
     false ->
@@ -405,6 +406,18 @@ random_term () ->
     10 -> random_tuple ()
   end.
 
+random_gt () ->
+  case random:uniform (2) of
+    1 -> '>';
+    2 -> '>='
+  end.
+
+random_lt () ->
+  case random:uniform (2) of
+    1 -> '<';
+    2 -> '=<'
+  end.
+
 -spec term_to_extended_term (any ()) -> extended_term ().
 
 term_to_extended_term (X) when is_list (X) ->
@@ -422,6 +435,32 @@ term_to_match_condition (X) when is_tuple (X) ->
   { list_to_tuple (term_to_match_condition (tuple_to_list (X))) };
 term_to_match_condition (X) ->
   X.
+
+-spec term_interval_union ([ any () ], any (), any (), any (), any ()) -> [ interval () ].
+
+term_interval_union (Prefix, A, B, C, D) when A =< C, C =< B;
+                                              A =< D, D =< B;
+                                              C =< A, A =< D;
+                                              C =< B, B =< D ->
+  [ 
+    { interval, 
+      term_to_extended_term 
+        (list_to_tuple (Prefix ++ [ lists:min ([ A, C ]) ])), 
+      term_to_extended_term 
+        (list_to_tuple (Prefix ++ [ lists:max ([ B, D ]) ]))
+    }
+  ];
+term_interval_union (Prefix, A, B, C, D) ->
+  [ 
+    { interval, 
+      term_to_extended_term (list_to_tuple (Prefix ++ [ C ])),
+      term_to_extended_term (list_to_tuple (Prefix ++ [ D ]))
+    },
+    { interval, 
+      term_to_extended_term (list_to_tuple (Prefix ++ [ A ])),
+      term_to_extended_term (list_to_tuple (Prefix ++ [ B ]))
+    }
+  ].
 
 %-=====================================================================-
 %-                                Tests                                -
@@ -490,9 +529,11 @@ prefix_tuple_with_guard_test_ () ->
     T = ?FORALL (X,
                  fun (_) -> { random_tuple (),
                               random_term (),
-                              random_term () } 
+                              random_term (),
+                              random_gt (),
+                              random_lt () } 
                   end,
-                 (fun ({ Prefix, R, S }) ->
+                 (fun ({ Prefix, R, S, Gt, Lt }) ->
                     [ L, U ] = lists:sort ([ R, S ]),
                     Lower = term_to_match_condition (L),
                     Upper = term_to_match_condition (U),
@@ -504,8 +545,8 @@ prefix_tuple_with_guard_test_ () ->
                     [ { interval, { tuple, LowerBound }, { tuple, UpperBound } 
                       }
                     ] = analyze ([ { { foo, BindingTuple, bar }, 
-                                     [ { '>', '$1', Lower },
-                                       { '<', '$1', Upper } 
+                                     [ { Gt, '$1', Lower },
+                                       { Lt, '$1', Upper } 
                                      ],
                                      [ '$1' ] 
                                    }
@@ -517,5 +558,123 @@ prefix_tuple_with_guard_test_ () ->
     ok = flasscheck (1000, 10, T)
   end.
 
+prefix_tuple_with_double_guard_test_ () ->
+  fun () ->
+    T = ?FORALL (X,
+                 fun (_) -> { random_tuple (),
+                              random_term (),
+                              random_term (),
+                              random_term (),
+                              random_term () } 
+                 end,
+                 (fun ({ Prefix, R, S, RDeux, SDeux }) ->
+                    [ L, U ] = lists:sort ([ R, S ]),
+                    Lower = term_to_match_condition (L),
+                    Upper = term_to_match_condition (U),
+                    [ LDeux, UDeux ] = lists:sort ([ RDeux, SDeux ]),
+                    LowerDeux = term_to_match_condition (LDeux),
+                    UpperDeux = term_to_match_condition (UDeux),
+                    PrefixList = tuple_to_list (Prefix),
+                    BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+                    Result = 
+                      term_interval_union (PrefixList, L, U, LDeux, UDeux),
+                    Result = 
+                        analyze ([ { { foo, BindingTuple, bar }, 
+                                     [ { '>', '$1', Lower },
+                                       { '<', '$1', Upper } 
+                                     ],
+                                     [ '$1' ] 
+                                   },
+                                   { { bar, BindingTuple, foo },
+                                     [ { '>', '$1', LowerDeux },
+                                       { '<', '$1', UpperDeux } 
+                                     ],
+                                     [ '$1' ] 
+                                   }
+                                 ],
+                                 2),
+                    true
+                 end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end.
+
+prefix_tuple_with_double_halfgt_guard_test_ () ->
+  fun () ->
+    T = ?FORALL (X,
+                 fun (_) -> { random_tuple (),
+                              random_term (),
+                              random_term (),
+                              random_gt () } 
+                 end,
+                 (fun ({ Prefix, L, LDeux, Gt }) ->
+                    Lower = term_to_match_condition (L),
+                    LowerDeux = term_to_match_condition (LDeux),
+                    PrefixList = tuple_to_list (Prefix),
+                    BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+
+                    Result = 
+                      [ { interval, 
+                        term_to_extended_term (list_to_tuple (PrefixList ++ [ lists:min ([ L, LDeux ]) ])),
+                        { tuple,
+                          term_to_extended_term (PrefixList) ++ [ largest ]
+                        }
+                      } ],
+
+                    Result = 
+                        analyze ([ { { foo, BindingTuple, bar }, 
+                                     [ { Gt, '$1', Lower } ],
+                                     [ '$1' ] 
+                                   },
+                                   { { bar, BindingTuple, foo },
+                                     [ { Gt, '$1', LowerDeux } ],
+                                     [ '$1' ] 
+                                   }
+                                 ],
+                                 2),
+                    true
+                 end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end.
+
+prefix_tuple_with_double_halflt_guard_test_ () ->
+  fun () ->
+    T = ?FORALL (X,
+                 fun (_) -> { random_tuple (),
+                              random_term (),
+                              random_term (),
+                              random_lt () } 
+                 end,
+                 (fun ({ Prefix, U, UDeux, Lt }) ->
+                    Upper = term_to_match_condition (U),
+                    UpperDeux = term_to_match_condition (UDeux),
+                    PrefixList = tuple_to_list (Prefix),
+                    BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
+
+                    Result = 
+                      [ { interval, 
+                        { tuple,
+                          term_to_extended_term (PrefixList) ++ [ smallest ]
+                        },
+                        term_to_extended_term (list_to_tuple (PrefixList ++ [ lists:max ([ U, UDeux ]) ]))
+                      } ],
+
+                    Result = 
+                        analyze ([ { { foo, BindingTuple, bar }, 
+                                     [ { Lt, '$1', Upper } ],
+                                     [ '$1' ] 
+                                   },
+                                   { { bar, BindingTuple, foo },
+                                     [ { Lt, '$1', UpperDeux } ],
+                                     [ '$1' ] 
+                                   }
+                                 ],
+                                 2),
+                    true
+                 end) (X)),
+
+    ok = flasscheck (1000, 10, T)
+  end.
 
 -endif.
