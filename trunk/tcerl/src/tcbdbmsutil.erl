@@ -189,7 +189,8 @@ analyze_match_conditions ({ Op, A, B }, Bindings) when Op =:= '<';
     false ->
       Bindings
   end;
-analyze_match_conditions ({ '=:=', A, B }, Bindings) ->
+analyze_match_conditions ({ Op, A, B }, Bindings) when Op =:= '=:=';
+                                                       Op =:= '==' ->
   lists:foldl (fun analyze_match_conditions/2, 
                Bindings,
                [ { '>=', A, B }, { '=<', A, B } ]);
@@ -418,6 +419,12 @@ random_lt () ->
   case random:uniform (2) of
     1 -> '<';
     2 -> '=<'
+  end.
+
+random_eq () ->
+  case random:uniform (2) of
+    1 -> '=:=';
+    2 -> '=='
   end.
 
 -spec term_to_extended_term (any ()) -> extended_term ().
@@ -740,9 +747,10 @@ prefix_tuple_with_double_gteq_guard_test_ () ->
                                 random_term (),
                                 random_term (),
                                 random_gt (),
-                                random_lt () } 
+                                random_lt (),
+                                random_eq () } 
                    end,
-                   (fun ({ Prefix, R, S, EDeux, Gt, Lt }) ->
+                   (fun ({ Prefix, R, S, EDeux, Gt, Lt, Eq }) ->
                       [ L, U ] = lists:sort ([ R, S ]),
                       Lower = term_to_match_condition (L),
                       Upper = term_to_match_condition (U),
@@ -759,8 +767,8 @@ prefix_tuple_with_double_gteq_guard_test_ () ->
                                        [ '$1' ] 
                                      },
                                      { { bar, BindingTuple, foo },
-                                       [ { '=:=', EqualDeux, '$1' },
-                                         { '=:=', 69, 69 }
+                                       [ { Eq, EqualDeux, '$1' },
+                                         { Eq, 69, 69 }
                                        ],
                                        [ '$1' ] 
                                      }
@@ -866,9 +874,10 @@ prefix_tuple_with_double_eq_guard_test_ () ->
       T = ?FORALL (X,
                    fun (_) -> { random_tuple (),
                                 random_term (),
-                                random_term () }
+                                random_term (),
+                                random_eq () }
                    end,
-                   (fun ({ Prefix, E, EDeux }) ->
+                   (fun ({ Prefix, E, EDeux, Eq }) ->
                       Equal = term_to_match_condition (E),
                       EqualDeux = term_to_match_condition (EDeux),
                       PrefixList = tuple_to_list (Prefix),
@@ -895,11 +904,11 @@ prefix_tuple_with_double_eq_guard_test_ () ->
 
                       Result =
                           analyze ([ { { foo, BindingTuple, bar }, 
-                                       [ { '=:=', '$1', Equal } ],
+                                       [ { Eq, '$1', Equal } ],
                                        [ '$1' ] 
                                      },
                                      { { bar, BindingTuple, foo },
-                                       [ { '=:=', EqualDeux, '$1' } ],
+                                       [ { Eq, EqualDeux, '$1' } ],
                                        [ '$1' ] 
                                      }
                                    ],
