@@ -1,4 +1,4 @@
-Version 1.3.1h [ NYR ]
+Version 1.3.1h
   * don't keep stats by default
   * analyze guards for (sometimes) more efficient select
   * autodetect tcerldrvprefix by default
