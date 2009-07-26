@@ -304,10 +304,12 @@ is_constant_expression (X) when is_atom (X) ->
   not is_match_variable (X);
 is_constant_expression ({ const, _ }) -> 
   true;
-is_constant_expression (X) when is_tuple (X), 
+is_constant_expression (X) when is_tuple (X),
                                 size (X) =:= 1,
-                                is_tuple (element (1, X)) -> 
+                                is_tuple (element (1, X)) ->
   is_constant_expression (tuple_to_list (element (1, X)));
+is_constant_expression (X) when is_tuple (X) ->
+  false;
 is_constant_expression (X) when is_list (X) ->
   lists:all (fun is_constant_expression/1, X);
 is_constant_expression (_) -> 
@@ -325,6 +327,8 @@ is_match_variable (_) ->
   false.
 
 -spec match_condition_to_extended_term (condition_expression ()) -> extended_term ().
+
+% this is only called with arguments such that is_constant_expression/1 is true
 
 match_condition_to_extended_term (X) when is_tuple (X),
                                           size (X) =:= 1,
