@@ -125,7 +125,7 @@ match_object (Tab, Pattern) when ?is_tabid (Tab) ->
 %% @hidden
 
 select (Cont) ->
-  tcbdbets:select (Cont).
+  ?stat (select, tcbdbets:select (Cont)).
 
 %% @hidden
 
