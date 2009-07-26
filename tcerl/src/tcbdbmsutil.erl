@@ -37,8 +37,8 @@
 
 % erlang terms, extended with a smallest and largest term
 
-%-type extended_term () :: smallest | largest | { literal, non_composite_term () } | [ extended_term () ] | { tuple, [ extended_term () ] }.
--type extended_term () :: smallest | largest | { literal, non_composite_term () } | [ any () ] | { tuple, [ any () ] }.
+%-type extended_term () :: smallest | largest | { literal, non_composite_term () } | [ extended_term () ] | { tuple, integer (), [ extended_term () ] }.
+-type extended_term () :: smallest | largest | { literal, non_composite_term () } | [ any () ] | { tuple, integer (), [ any () ] }.
 
 % intervals of extended erlang terms
 
@@ -110,7 +110,11 @@ adjust_upper_bound (Variable, ExtendedTerm, Bindings = { bindings, Dict }) ->
 analyze_keypos (MatchHead, Bindings) when is_tuple (MatchHead) ->
   case analyze_keypos_elements (tuple_to_list (MatchHead), Bindings, []) of
     { interval, Lower, Upper } when is_list (Lower), is_list (Upper) -> 
-      { interval, { tuple, Lower }, { tuple, Upper } };
+      Size = size (MatchHead),
+      { interval, 
+        { tuple, Size, fixed_width (Lower, Size, smallest) }, 
+        { tuple, Size, fixed_width (Upper, Size, largest) }
+      };
     none -> 
       none
   end;
@@ -236,18 +240,20 @@ extended_leq (_, largest) -> true;
 % so first deal with lists
 extended_leq (X, { literal, Y }) when is_list (X), is_bitstring (Y) -> true;
 extended_leq (X, Y) when is_list (X), is_list (Y) -> extended_leq_list (X, Y);
-extended_leq (X, { tuple, _ }) when is_list (X) -> false;
+extended_leq (X, { tuple, _, _ }) when is_list (X) -> false;
 extended_leq (X, { literal, _ }) when is_list (X) -> false;
 % now deal with tuples
-extended_leq ({ tuple, _ }, { literal, Y }) when is_bitstring (Y) -> true;
-extended_leq ({ tuple, _ }, Y) when is_list (Y) -> true;
-extended_leq ({ tuple, X }, { tuple, Y }) -> extended_leq_list (X, Y);
-extended_leq ({ tuple, _ }, { literal, _ }) -> false;
+extended_leq ({ tuple, _, _ }, { literal, Y }) when is_bitstring (Y) -> true;
+extended_leq ({ tuple, _, _ }, Y) when is_list (Y) -> true;
+extended_leq ({ tuple, X, _ }, { tuple, Y, _ }) when X < Y -> true;
+extended_leq ({ tuple, X, _ }, { tuple, Y, _ }) when X > Y -> false;
+extended_leq ({ tuple, N, X }, { tuple, N, Y }) -> extended_leq (X, Y);
+extended_leq ({ tuple, _, _ }, { literal, _ }) -> false;
 % now deal with other types
 extended_leq ({ literal, X }, Y) when is_bitstring (X), is_list (Y) -> false;
-extended_leq ({ literal, X }, { tuple, _ }) when is_bitstring (X) -> false;
+extended_leq ({ literal, X }, { tuple, _, _ }) when is_bitstring (X) -> false;
 extended_leq ({ literal, _ }, Y) when is_list (Y) -> true;
-extended_leq ({ literal, _ }, { tuple, _ }) -> true;
+extended_leq ({ literal, _ }, { tuple, _, _ }) -> true;
 extended_leq ({ literal, X }, { literal, Y }) -> X =< Y.
 
 -spec extended_leq_list ([ extended_term () ], [ extended_term () ]) -> bool ().
@@ -279,6 +285,13 @@ extended_max (A, B) ->
     true -> B;
     false -> A
   end.
+
+-spec fixed_width ([ any () ], integer (), any ()) -> [ any () ].
+
+fixed_width (List, N, Elem) when length (List) < N ->
+  lists:append (List, lists:duplicate (N - length (List), Elem));
+fixed_width (List, _N, _Elem) ->
+  List.
 
 -spec interval_union ([ interval () ]) -> [ interval () ].
 
@@ -316,9 +329,12 @@ is_match_variable (_) ->
 match_condition_to_extended_term (X) when is_tuple (X),
                                           size (X) =:= 1,
                                           is_tuple (element (1, X)) ->
-  { tuple, match_condition_to_extended_term (tuple_to_list (element (1, X))) };
+  { tuple, 
+    size (element (1, X)),
+    match_condition_to_extended_term (tuple_to_list (element (1, X))) 
+  };
 match_condition_to_extended_term ({ const, X }) when is_tuple (X) ->
-  { tuple, match_condition_to_extended_term (tuple_to_list (X)) };
+  { tuple, size (X), match_condition_to_extended_term (tuple_to_list (X)) };
 match_condition_to_extended_term ({ const, X }) ->
   match_condition_to_extended_term (X);
 match_condition_to_extended_term (X) when is_list (X) ->
@@ -432,7 +448,7 @@ random_eq () ->
 term_to_extended_term (X) when is_list (X) ->
   [ term_to_extended_term (Y) || Y <- X ];
 term_to_extended_term (X) when is_tuple (X) ->
-  { tuple, term_to_extended_term (tuple_to_list (X)) };
+  { tuple, size (X), term_to_extended_term (tuple_to_list (X)) };
 term_to_extended_term (X) ->
   { literal, X }.
 
@@ -522,14 +538,18 @@ prefix_tuple_test_ () ->
                       BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
                       LowerBound = LitPrefixList ++ [ smallest ],
                       UpperBound = LitPrefixList ++ [ largest ],
-                      [ { interval, { tuple, LowerBound }, { tuple, UpperBound } 
-                        }
-                      ] = analyze ([ { { foo, BindingTuple, bar }, 
-                                       [], 
-                                       [ '$1' ] 
-                                     }
-                                   ],
-                                   2),
+                      Result = 
+                        [ { interval,
+                            { tuple, size (BindingTuple), LowerBound },
+                            { tuple, size (BindingTuple), UpperBound }
+                          } 
+                        ],
+                      Result = analyze ([ { { foo, BindingTuple, bar }, 
+                                            [], 
+                                            [ '$1' ] 
+                                          }
+                                        ],
+                                        2),
                       true
                    end) (X)),
   
@@ -557,19 +577,24 @@ prefix_tuple_with_guard_test_ () ->
                       BindingTuple = list_to_tuple (PrefixList ++ [ '$1' ]),
                       LowerBound = LitPrefixList ++ term_to_extended_term ([ L ]),
                       UpperBound = LitPrefixList ++ term_to_extended_term ([ U ]),
-                      [ { interval, { tuple, LowerBound }, { tuple, UpperBound } 
-                        }
-                      ] = analyze ([ { { foo, BindingTuple, bar }, 
-                                       [ { Gt, '$1', Lower },
-                                         { Lt, '$1', Upper },
-                                         { Gt, 69, { const, 69 } },
-                                         { Lt, 69, 69 },
-                                         { 'and', true, true }
-                                       ],
-                                       [ '$1' ] 
-                                     }
-                                   ],
-                                   2),
+                      Result = 
+                        [ { interval,
+                            { tuple, size (BindingTuple), LowerBound },
+                            { tuple, size (BindingTuple), UpperBound }
+                          }
+                        ],
+
+                      Result = analyze ([ { { foo, BindingTuple, bar }, 
+                                            [ { Gt, '$1', Lower },
+                                              { Lt, '$1', Upper },
+                                              { Gt, 69, { const, 69 } },
+                                              { Lt, 69, 69 },
+                                              { 'and', true, true }
+                                            ],
+                                            [ '$1' ] 
+                                          }
+                                        ],
+                                        2),
                       true
                    end) (X)),
   
@@ -650,9 +675,11 @@ prefix_tuple_with_double_impossible_guard_test_ () ->
                       Result = 
                         [ { interval,
                             { tuple,
+                              size (BindingTuple),
                               term_to_extended_term (PrefixList ++ [ L ])
                             },
                             { tuple,
+                              size (BindingTuple),
                               term_to_extended_term (PrefixList ++ [ U ])
                             }
                           } 
@@ -706,9 +733,11 @@ prefix_tuple_with_double_impossible_guard_swap_test_ () ->
                       Result = 
                         [ { interval,
                             { tuple,
+                              size (BindingTuple),
                               term_to_extended_term (PrefixList ++ [ L ])
                             },
                             { tuple,
+                              size (BindingTuple),
                               term_to_extended_term (PrefixList ++ [ U ])
                             }
                           } 
@@ -802,6 +831,7 @@ prefix_tuple_with_double_halfgt_guard_test_ () ->
                         [ { interval, 
                           term_to_extended_term (list_to_tuple (PrefixList ++ [ lists:min ([ L, LDeux ]) ])),
                           { tuple,
+                            size (BindingTuple),
                             term_to_extended_term (PrefixList) ++ [ largest ]
                           }
                         } ],
@@ -844,6 +874,7 @@ prefix_tuple_with_double_halflt_guard_test_ () ->
                       Result = 
                         [ { interval, 
                           { tuple,
+                            size (BindingTuple),
                             term_to_extended_term (PrefixList) ++ [ smallest ]
                           },
                           term_to_extended_term (list_to_tuple (PrefixList ++ [ lists:max ([ U, UDeux ]) ]))
@@ -886,17 +917,21 @@ prefix_tuple_with_double_eq_guard_test_ () ->
                       Result = 
                         [ { interval,
                             { tuple,
+                              size (BindingTuple),
                               term_to_extended_term (PrefixList ++ [ EDeux ])
                             },
                             { tuple,
+                              size (BindingTuple),
                               term_to_extended_term (PrefixList ++ [ EDeux ])
                             }
                           },
                           { interval,
                             { tuple,
+                              size (BindingTuple),
                               term_to_extended_term (PrefixList ++ [ E ])
                             },
                             { tuple,
+                              size (BindingTuple),
                               term_to_extended_term (PrefixList ++ [ E ])
                             }
                           }
