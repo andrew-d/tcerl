@@ -6,6 +6,8 @@
 There are two pieces: tcerldrv, the C driver; and tcerl, the Erlang code.
 Both pieces use automake to build.[[#1 1]]
 
+Do NOT attempt to build from a checkout from the source code repository: that is for wizards only.  Instead, grab one of the released source tarballs from the [http://code.google.com/p/tcerl/downloads/list downloads] tab.
+
 = tcerldrv =
 
   * The default prefix is "/usr".  If you don't like that, make sure to use the --prefix configure option.
