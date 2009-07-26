@@ -46,7 +46,7 @@ FW_DUPLOAD_ARGS=${FW_DUPLOAD_ARGS-"-t dukeshardy"}
 
 # uncomment to define the application environment variables. should be an 
 # erlang expression which evaluates to a list.
-FW_ERL_APP_ENVIRONMENT="[ { tcerldrvprefix, \"/usr\" } ]"
+FW_ERL_APP_ENVIRONMENT="[ { tcerldrvprefix, auto_detect } ]"
 
 # uncomment to indicate additional OTP applications (besides kernel and stdlib)
 # that this application depends upon, comma-separated

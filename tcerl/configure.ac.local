@@ -13,3 +13,4 @@ if test "$MNESIA_EXT" = "-DHAVE_MNESIA_EXT=1"
   fi
 
 AM_CONDITIONAL([HAVE_MNESIA_EXT], [test "$MNESIA_EXT" = "-DHAVE_MNESIA_EXT=1"])
+AC_CONFIG_FILES([src/tcerlprefix.hrl])
