@@ -14,6 +14,8 @@
            code_change/3,
            terminate/2 ]).
 
+-include ("tcerlprefix.hrl").
+
 -record (state, {}).
 -record (statev2, { tabs }).
 
@@ -42,7 +44,9 @@ start_link () ->
 init ([]) ->
   process_flag (trap_exit, true),
 
-  { ok, Dir } = application:get_env (tcerl, tcerldrvprefix),
+  { ok, DirVar } = application:get_env (tcerl, tcerldrvprefix),
+
+  Dir = case DirVar of auto_detect -> tcerldrv_guessprefix (); _ -> DirVar end,
 
   case erl_ddll:load_driver (Dir ++ "/lib", libtcbdberl) of
     ok -> ok;
@@ -101,3 +105,20 @@ terminate (_Reason, #statev2{ tabs = Tabs }) ->
   lists:foreach (fun (T) -> catch tcbdbets:close (T) end,
                  [ V || { _, V } <- dict:to_list (Tabs) ]),
   ok.
+
+%-=====================================================================-
+%-                               Private                               -
+%-=====================================================================-
+
+tcerldrv_guessprefix () ->
+  lists:foldl 
+    (fun (Candidate, undefined) ->
+       case file:read_file_info (Candidate ++ "/lib/libtcbdberl.so") of
+         { ok, _ } -> Candidate;
+         { error, _ } -> undefined
+       end;
+         (_, Acc) ->
+       Acc
+     end,
+     undefined,
+     [ ?automake_prefix, "/usr", "/usr/local", "/sw" ]).
