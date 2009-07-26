@@ -951,12 +951,12 @@ render_extended_term (X) when is_list (X) ->
   Length = erlang:length (X),
   Initial = <<108, Length:32/big-unsigned>>,
   render_extended_term_list (X, true, [ Initial ]);
-render_extended_term ({ tuple, X }) ->
+render_extended_term ({ tuple, N, X }) ->
   Initial = 
-    case erlang:length (X) of
-      N when N < 256 ->
+    case N < 256 of
+      true ->
         <<104, N:8/unsigned>>;
-      N ->
+      false ->
         <<105, N:32/big-unsigned>>
     end,
   render_extended_term_list (X, false, [ Initial ]);
@@ -965,17 +965,17 @@ render_extended_term ({ literal, X }) ->
   Rest.
 
 render_extended_term_list ([], true, Acc) ->
-  [ <<106>>, Acc ];
+  [ lists:reverse (Acc), <<106>> ];
 render_extended_term_list ([], false, Acc) ->
-  Acc;
+  lists:reverse (Acc);
 render_extended_term_list ([ H | T ], NilTerminated, Acc) ->
   render_extended_term_list (T, 
                              NilTerminated, 
                              [ render_extended_term (H) | Acc ]).
 
-render_interval ({ interval, ExtendedTerm, ExtendedTerm }) ->
-  { [ <<131>>, render_extended_term (ExtendedTerm) ], 
-    [ <<131>>, render_extended_term (ExtendedTerm) ] }.
+render_interval ({ interval, Lower, Upper }) ->
+  { [ <<131>>, render_extended_term (Lower) ], 
+    [ <<131>>, render_extended_term (Upper) ] }.
 
 % foldl
 
@@ -2298,7 +2298,7 @@ select_test_ () ->
                   true
                 end) (X)),
 
-    ok = flasscheck (10000, 10, T)
+    ok = flasscheck (1000, 10, T)
   end,
 
   { setup,

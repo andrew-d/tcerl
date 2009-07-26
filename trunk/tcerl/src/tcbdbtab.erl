@@ -758,6 +758,14 @@ roundtrip_test_ () ->
     fun (X) -> { timeout, 60, fun () -> F (X) end } end
   }.
 
+-ifdef (KEEP_STATS).
+-define (result, [ { delete, _, _, 1 },
+                   { insert, _, _, 1 },
+                   { lookup, _, _, 2 } ]).
+-else.
+-define (result, []).
+-endif.
+
 roundtrip_async_test_ () ->
   F = fun (Tab) ->
     T =
@@ -768,9 +776,7 @@ roundtrip_async_test_ () ->
                   [ { Tab, Key, Value } ] = mnesia:dirty_read ({ Tab, Key }),
                   ok = mnesia:dirty_delete ({ Tab, Key }),
                   [] = mnesia:dirty_read ({ Tab, Key }),
-                  [ { delete, _, _, 1 },
-                    { insert, _, _, 1 },
-                    { lookup, _, _, 2 } ] = lists:sort (get_stats (Tab)),
+                  ?result = lists:sort (get_stats (Tab)),
                   ok = clear_stats (Tab),
                   [] = get_stats (Tab),
                   ok = clear_stats (Tab),
