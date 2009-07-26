@@ -29,7 +29,7 @@ Both pieces use automake to build.[[#1 1]]
 = tcerl =
 
   * The default prefix is wherever tcerldrv was installed, if that can be found in the path, otherwise "/usr".  If you don't like that, make sure to use the --prefix configure option.
-        * If you chose a different prefix when installing tcerldrv, use application:set_env/3 with the tcerl application variable 'tcerldrvprefix' to let the code know where to look.
+        * When tcerl is started up, it attempts to auto-detect where the tcerldrv has been installed.  Ideally this always works, but just in case, you can use application:set_env/3 with the tcerl application variable 'tcerldrvprefix' to let the code know where to look.
 
   * You need a working Erlang installation.
         * Ubuntu/Debian: aptitude install erlang
