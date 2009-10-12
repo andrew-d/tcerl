@@ -11,6 +11,7 @@ Both pieces use automake to build.[[#1 1]]
 = tcerldrv =
 
   * The default prefix is "/usr".  If you don't like that, make sure to use the --prefix configure option.
+   *  if you run into strange compilation issues, you can try passing the --disable-hardcore option to configure; this will disable the "treat warnings as errors" flag to the C compiler. At the time I wrote the software, there were no warnings, but as the standard library and compilers evolve that can change.
 
   * You need pkg-config.
         * Ubuntu/Debian: aptitude install pkg-config
